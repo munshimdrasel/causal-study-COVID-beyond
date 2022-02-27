@@ -25,11 +25,14 @@ setwd ("/Volumes/GoogleDrive/My Drive/R/causal-study-COVID-beyond")
 
 so2.facility <- read.fst( "data/all.facility.so2.2020.fst")
 
+so2.facility[, Fuel1.IsCoal := as.numeric(grepl("Coal", Fuel.Type..Primary.))]
+so2.facility[Fuel.Type..Primary. == "", Fuel1.IsCoal := NA]
 
 so2.facility <- so2.facility %>%  filter (week>8)
 sum(so2.facility$ATT, na.rm=T)
 
-
+so2.facility.coal <- so2.facility %>%  filter (Fuel1.IsCoal==1)
+sum(so2.facility.coal$ATT, na.rm=T)
 
 
 
@@ -38,7 +41,7 @@ so2.facility.states<- setDT(so2.facility)[, .(ATT = sum(ATT, na.rm=TRUE),
                                               S.E.=sum(S.E., na.rm=T),
                                               CI.lower=sum(CI.lower, na.rm = T),
                                               CI.upper=sum(CI.upper, na.rm=T),
-                                              p.value=sum(p.value, na.rm=T),
+                                              p.value=mean(p.value, na.rm=T),
                                               Facility.Longitude = mean(Facility.Longitude, na.rm=TRUE),
                                               Facility.Latitude = mean(Facility.Latitude, na.rm=TRUE),
                                               actual.so2.emis = sum(Y.tr.bar, na.rm=T),
@@ -58,9 +61,9 @@ so2.facility.states <- so2.facility.states %>% mutate(pct=(so2.facility.states$a
                                                         so2.facility.states$actual.so2.emis)
 
 plot_usmap(data = as.data.frame(so2.facility.states), values = "ATT", color = "black", labels = F,  exclude = c("AK", "HI")) +
-  scale_fill_gradient2(low="blue", mid= "white", high="red", name = expression(paste("ATT " , SO[2] , " tons/day"))) +
+  scale_fill_gradient2(low="blue", mid= "white", high="red", name = expression(paste("ATT " , SO[2] , " tons"))) +
   theme(legend.position = c( 0.25, .9), legend.direction = "horizontal" ,
-        legend.text = element_text(size = 30),text = element_text(size=30)) + 
+        legend.text = element_text(size = 12),text = element_text(size=20)) + 
   guides(fill = guide_colorbar( label.position = "top",
                                 title.position = "left", title.vjust = 0, title.hjust = -15,
                                 label.vjust= -1.5,
@@ -68,6 +71,8 @@ plot_usmap(data = as.data.frame(so2.facility.states), values = "ATT", color = "b
                                 frame.colour = "black",
                                 barwidth = 12,
                                 barheight = 1)) 
+
+ggsave("longterm_so2_att.png", path = "./plots/")
 
 so2.facility.states %>% top_n (3, pct )
 
@@ -115,7 +120,7 @@ so2.facility.states.loc <- so2.facility.states.loc %>% mutate(pct=(so2.facility.
 plot_usmap(data = as.data.frame(so2.facility.states.loc), values = "ATT", color = "black", labels = F,  exclude = c("AK", "HI")) +
   scale_fill_gradient2(low="blue", mid= "white", high="red", name = expression(paste("ATT " , SO[2] , " tons/day"))) +
   theme(legend.position = c( 0.25, .9), legend.direction = "horizontal" ,
-        legend.text = element_text(size = 30),text = element_text(size=30)) + 
+        legend.text = element_text(size = 12),text = element_text(size=20)) + 
   guides(fill = guide_colorbar( label.position = "top",
                                 title.position = "left", title.vjust = 0, title.hjust = -15,
                                 label.vjust= -1.5,
@@ -123,6 +128,6 @@ plot_usmap(data = as.data.frame(so2.facility.states.loc), values = "ATT", color 
                                 frame.colour = "black",
                                 barwidth = 12,
                                 barheight = 1)) 
-
+ggsave("shortterm_so2_att.png", path = "./plots/")
 so2.facility.states.loc %>% top_n (3, ATT )
 
