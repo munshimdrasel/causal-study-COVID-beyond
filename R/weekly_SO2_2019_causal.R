@@ -16,6 +16,8 @@ library(openair)
 library(gridExtra)
 library(ggmap)
 library(Rmisc)
+library(hrbrthemes)
+library(viridis)
 
 # setwd ("/projects/HAQ_LAB/mrasel/R/causal-study-COVID-beyond")
 
@@ -533,7 +535,12 @@ all.so2.emission %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot()  
 all.so2.emission %>% ggplot(aes(x=group, y= NMGE, fill=group)) + geom_boxplot() +
   scale_y_continuous(trans = 'log10',labels = scales::number_format(accuracy = 0.01))+
   labs(x="", y="Normalized Mean Gross Error", title = "all percentage of operation in 2020") +
-  theme_bw() +theme(legend.position = "none")
+  theme_bw() +theme(legend.position = "none") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none") 
 
 all.so2.emission %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot() +
   labs(x="", y="Normalized Mean Bias", title = "all percentage of operation in 2020")
@@ -542,7 +549,12 @@ all.so2.emission %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot() +
 all.so2.emission %>% ggplot(aes(x=group, y= RMSE, fill=group)) + geom_boxplot() +
   scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01)) +
   labs(x="", y="RMSE (so2 tons/week)", title = "all percentage of operation in 2020") +
-  theme_bw() +theme(legend.position = "none")
+  theme_bw() +theme(legend.position = "none") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
 
 all.so2.emission %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot() +
   labs(x="", y="MB", title = "all percentage of operation in 2020") +
@@ -551,7 +563,12 @@ all.so2.emission %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot() +
 all.so2.emission %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot() +
   scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01)) +
   labs(x="", y="MGE (so2 tons/week)", title = "all percentage of operation in 2020") +
-  theme_bw() +theme(legend.position = "none")
+  theme_bw() +theme(legend.position = "none") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
 
 all.so2.emission %>% ggplot(aes(x=group, y= FAC2, fill=group)) + geom_boxplot() +
   labs(x="", y="Fractional Bias", title = "facilities operating >75% in 2020") +
@@ -571,8 +588,10 @@ all.so2.emission %>% ggplot(aes(x=group, y= r, fill=group)) + geom_boxplot() +
 
 #box plot consideing more than 75% operation in 2020
 
-all.so2.emission.75 <- all.so2.emission %>%  filter(SUM_OP_TIME >=0.5*max(all.so2.emission$SUM_OP_TIME)
-                                                    & SUM_OP_TIME <= 0.75*max(all.so2.emission$SUM_OP_TIME))
+# based on percentile
+summary(all.so2.emission$SUM_OP_TIME)
+
+all.so2.emission.75 <- all.so2.emission %>%  filter(SUM_OP_TIME >= 15402.72)
 all.so2.emission.75 %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot()  +
   labs(x="", y="Index of Agreement", title = "facilities operating >75% in 2020") +
   stat_summary(aes(label=sprintf("%1.1f", ..y..),),
@@ -583,9 +602,15 @@ all.so2.emission.75 %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot(
 
 all.so2.emission.75 %>%  ggplot(aes(x=group, y= NMGE, fill=group)) + geom_boxplot() +
   labs(x="", y="Normalized Mean Gross Error", title = "facilities operating >75% in 2020")   +
-  scale_y_continuous(trans = 'log10',labels = scales::number_format(accuracy = 0.01))
+  scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01)) +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
 
 all.so2.emission.75 %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot()  +
+  scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01)) +
   stat_summary(aes(label=sprintf("%1.1f", ..y..),),
                geom="text",
                fun = function(y) boxplot.stats(y)$stats,
@@ -594,8 +619,14 @@ all.so2.emission.75 %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot(
 all.so2.emission.75 %>% ggplot(aes(x=group, y= RMSE, fill=group)) + geom_boxplot() +
   scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01)) +
   labs(x="", y="RMSE (so2 tons/week)", title = "facilities operating >75% in 2020") +
-  theme_bw() +theme(legend.position = "none")
+  theme_bw() +theme(legend.position = "none")  +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
 all.so2.emission.75 %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot() +
+  scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01)) +
   labs(x="", y="MB", title = "facilities operating >75% in 2020") +
   stat_summary(aes(label=sprintf("%1.1f", ..y..),),
                geom="text",
@@ -605,7 +636,12 @@ all.so2.emission.75 %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot()
 all.so2.emission.75 %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot() +
   scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01)) +
   labs(x="", y="Mean Gross Error (so2 tons/week)", title = "facilities operating >75% in 2020") +
-  theme_bw() +theme(legend.position = "none")
+  theme_bw() +theme(legend.position = "none") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
 
 all.so2.emission.75 %>% ggplot(aes(x=group, y= FAC2, fill=group)) + geom_boxplot() +
   labs(x="", y="Fractional Bias", title = "facilities operating >75% in 2020") +
@@ -625,59 +661,163 @@ all.so2.emission.75 %>% ggplot(aes(x=group, y= r, fill=group)) + geom_boxplot() 
 
 #box plot consideing less than 25% operation
 
-all.so2.emission.25 <- all.so2.emission %>%  filter(SUM_OP_TIME <0.25*max(all.so2.emission$SUM_OP_TIME))
-all.so2.emission.25 %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot()
-all.so2.emission.25 %>% ggplot(aes(x=group, y= r.sqd.r, fill=group)) + geom_boxplot() +labs(y="R squared")
-all.so2.emission.25 %>% ggplot(aes(x=group, y= NMGE, fill=group)) + geom_boxplot() + scale_y_continuous(trans = 'log10',
-                                                                                                        labels = scales::number_format(accuracy = 0.01))
-all.so2.emission.25 %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot()
+all.so2.emission.25 <- all.so2.emission %>%  filter(SUM_OP_TIME <3543.98) #25% percentile
+all.so2.emission.25 %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot() +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.5),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+
+all.so2.emission.25 %>% ggplot(aes(x=group, y= NMGE, fill=group)) + geom_boxplot() + 
+  scale_y_continuous(trans = 'log10',  labels = scales::number_format(accuracy = 0.01))+
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.5),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.so2.emission.25 %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot() +
+  scale_y_continuous(trans = 'log10',  labels = scales::number_format(accuracy = 0.01))+
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.5),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.so2.emission.25 %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot() +
+  scale_y_continuous(trans = 'log10',  labels = scales::number_format(accuracy = 0.01))+
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.5),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+
 all.so2.emission.25 %>% ggplot(aes(x=group, y= RMSE, fill=group)) + geom_boxplot() +
-  scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01))
-all.so2.emission.25 %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot()
-all.so2.emission.25 %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot()+ scale_y_continuous(trans = 'log10',
-                                                                                                      labels = scales::number_format(accuracy = 0.01))
+  scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01)) +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.5),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.so2.emission.25 %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot()+
+  scale_y_continuous(trans = 'log10',  labels = scales::number_format(accuracy = 0.01))+
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.5),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.so2.emission.25 %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot()+ 
+  scale_y_continuous(trans = 'log10',labels = scales::number_format(accuracy = 0.01)) +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.5),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
 
 
-#box plot consideing 25% to 50% operation
+#box plot consideing 25% to 100% operation
 
-all.so2.emission.25.50 <- all.so2.emission %>%  filter(SUM_OP_TIME >=0.25*max(all.so2.emission$SUM_OP_TIME)
-                                                       & SUM_OP_TIME < 0.50*max(all.so2.emission$SUM_OP_TIME))
-all.so2.emission.25.50 %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot()
-all.so2.emission.25.50 %>% ggplot(aes(x=group, y= r.sqd.r, fill=group)) + geom_boxplot()
-all.so2.emission.25.50 %>% ggplot(aes(x=group, y= NMGE, fill=group)) + geom_boxplot()
-all.so2.emission.25.50 %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot()
-all.so2.emission.25.50 %>% ggplot(aes(x=group, y= RMSE, fill=group)) + geom_boxplot() + scale_y_continuous(trans = 'log10',
-                                                                                                           labels = scales::number_format(accuracy = 0.01))
-all.so2.emission.25.50 %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot()
-all.so2.emission.25.50 %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot() + scale_y_continuous(trans = 'log10',
-                                                                                                          labels = scales::number_format(accuracy = 0.01))
+all.so2.emission.25.100 <- all.so2.emission %>%  filter(SUM_OP_TIME >=3543.98)
+all.so2.emission.25.100 %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot()+
+  labs(x="", y="Index of Agreement", title = "facilities operating >25% in 2020") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.so2.emission.25.100 %>% ggplot(aes(x=group, y= NMGE, fill=group)) + geom_boxplot()+
+  scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01)) +
+  labs(x="", y="NMGE", title = "facilities operating >25% in 2020") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.so2.emission.25.100 %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot()+
+  scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01))+
+  labs(x="", y="NMB", title = "facilities operating >25% in 2020") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.so2.emission.25.100 %>% ggplot(aes(x=group, y= RMSE, fill=group)) + geom_boxplot() + 
+  scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01))+
+  labs(x="", y="RMSE", title = "facilities operating >25% in 2020") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.so2.emission.25.100 %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot() +
+  scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01))+
+  labs(x="", y="MB", title = "facilities operating >25% in 2020") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.so2.emission.25.100 %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot() + 
+  scale_y_continuous(trans = 'log10',labels = scales::number_format(accuracy = 0.01)) +
+  labs(x="", y="MGE", title = "facilities operating >25% in 2020") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
 
 
-#box plot consideing 50% to 75% operation
+#box plot consideing more than 50%
 
-all.so2.emission.50.75 <- all.so2.emission %>%  filter(SUM_OP_TIME >=0.5*max(all.so2.emission$SUM_OP_TIME)
-                                                    & SUM_OP_TIME <= 0.75*max(all.so2.emission$SUM_OP_TIME))
-all.so2.emission.50.75 %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot()
-all.so2.emission.50.75 %>% ggplot(aes(x=group, y= r.sqd.r, fill=group)) + geom_boxplot()
-all.so2.emission.50.75 %>% ggplot(aes(x=group, y= NMGE, fill=group)) + geom_boxplot() + scale_y_continuous(trans = 'log10',
-                                                                                                           labels = scales::number_format(accuracy = 0.01))
-all.so2.emission.50.75 %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot()
-all.so2.emission.50.75 %>% ggplot(aes(x=group, y= RMSE, fill=group)) + geom_boxplot() + scale_y_continuous(trans = 'log10',
-                                                                                                           labels = scales::number_format(accuracy = 0.01))
-all.so2.emission.50.75 %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot()
-all.so2.emission.50.75 %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot() + scale_y_continuous(trans = 'log10',
-                                                                                                          labels = scales::number_format(accuracy = 0.01))
+all.so2.emission.50.100 <- all.so2.emission %>%  filter(SUM_OP_TIME >=11103.02)
+all.so2.emission.50.100 %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot()
+
+all.so2.emission.50.100 %>% ggplot(aes(x=group, y= NMGE, fill=group)) + geom_boxplot() +
+  scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01))  +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.so2.emission.50.100 %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot()  +
+  scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01))  +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.so2.emission.50.100 %>% ggplot(aes(x=group, y= RMSE, fill=group)) + geom_boxplot() + 
+  scale_y_continuous(trans = 'log10',  labels = scales::number_format(accuracy = 0.01)) +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.so2.emission.50.100 %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot()  +
+  scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01))  +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.so2.emission.50.100 %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot() + 
+  scale_y_continuous(trans = 'log10',  labels = scales::number_format(accuracy = 0.01))  +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+
 
 
 
 # ggsave("R.sq.2019_so2_9_box.png", path = "./plots/")
 
-# all.so2.emission %>% ggplot(aes(x=MGE, fill=group)) +
-#   geom_histogram(binwidth = 1, alpha=0.5, position = 'identity') +
-#   labs(x= "NMGE",   y = "Number of facilities",
-#        title = "") + theme(legend.position = c(0.8, 0.8)) +
-#   guides(fill=guide_legend(title="Model")) + 
-#   scale_x_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01))
+all.so2.emission.50.100 %>% ggplot(aes(x=RMSE, fill=group)) +
+  geom_histogram(binwidth = 1, alpha=0.5, position = 'identity') +
+  labs(x= "RMSE",   y = "Number of facilities",
+       title = "") + theme(legend.position = c(0.8, 0.8)) +
+  guides(fill=guide_legend(title="Model")) +
+  scale_x_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01))
 
 # ggsave("NMGE2019_so2_3.png", path = "./plots/")
 

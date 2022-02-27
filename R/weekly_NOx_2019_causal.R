@@ -162,6 +162,19 @@ load ("data/facility_nox_2019.RData")
 load ("data/result_nox_weekly_2019.RData")
 load ("data/facility_nox_2019.RData")
 
+# getting counter factual plots
+
+counterfactual_plots <- list()
+for (i in 1: length(facility)) {
+  counterfactual_plots[[i]] <- result_nox_weekly_2019 [[i]][[3]]
+}
+
+layout <- rbind(c(1,2), c(3,4), c(5,6))
+pdf(file = 'plots/counterfactual_plots_nox_2019.pdf', onefile = TRUE, paper = 'A4',
+    width = 9, height = 9, pointsize = 1)
+marrangeGrob(grobs = counterfactual_plots, ncol = 2, nrow = 3, layout_matrix = layout)
+dev.off()
+
 # result_nox_weekly_2019_test <- list()
 # facility_test <- list()
 # 
@@ -234,6 +247,7 @@ ac.ct.nox.emission %>%
 
 # ===============================average of 2016, 2017, 2018 vs 2019 emission======================
 # ampd_daily_emissions <- read.fst ("/Volumes/GoogleDrive/My Drive/R/ampd-raw-data-processing/data/ampd_daily_emission.fst")
+
 ampd_daily_emissions_2010_2018_9_52 <- ampd_daily_all_units %>%
   filter (year %in% c( 2010:2018) &
             isoweek >=9) %>% dplyr::select(ORISPL_CODE,  isoweek, NOx..tons.)
@@ -242,8 +256,9 @@ ampd_daily_emissions_2010_2018_9_52 <- setDT(ampd_daily_emissions_2010_2018_9_52
                                 NOx..tons. = mean(NOx..tons., na.rm=TRUE)),
                                              by = .( ORISPL_CODE, isoweek)]
 
-ampd_daily_emissions_2010_2018_9_52 <- ampd_daily_emissions_2010_2018_9_52 %>%
-  filter (ORISPL_CODE %in% facility )
+facility.9 <- as.vector(unique(ampd_daily_emissions_2010_2018_9_52$ORISPL_CODE))
+# ampd_daily_emissions_2010_2018_9_52 <- ampd_daily_emissions_2010_2018_9_52 %>%
+#   filter (ORISPL_CODE %in% facility )
 
 
 datalist = list()
@@ -290,8 +305,8 @@ ampd_daily_emissions_2012_2018_9_52 <- setDT(ampd_daily_emissions_2012_2018_9_52
   NOx..tons. = mean(NOx..tons., na.rm=TRUE)),
   by = .( ORISPL_CODE, isoweek)]
 
-ampd_daily_emissions_2012_2018_9_52 <- ampd_daily_emissions_2012_2018_9_52 %>%
-  filter (ORISPL_CODE %in% facility )
+# ampd_daily_emissions_2012_2018_9_52 <- ampd_daily_emissions_2012_2018_9_52 %>%
+#   filter (ORISPL_CODE %in% facility )
 
 
 datalist = list()
@@ -340,8 +355,8 @@ ampd_daily_emissions_2014_2018_9_52 <- setDT(ampd_daily_emissions_2014_2018_9_52
   NOx..tons. = mean(NOx..tons., na.rm=TRUE)),
   by = .( ORISPL_CODE, isoweek)]
 
-ampd_daily_emissions_2014_2018_9_52 <- ampd_daily_emissions_2014_2018_9_52 %>%
-  filter (ORISPL_CODE %in% facility )
+# ampd_daily_emissions_2014_2018_9_52 <- ampd_daily_emissions_2014_2018_9_52 %>%
+#   filter (ORISPL_CODE %in% facility )
 
 
 datalist = list()
@@ -386,8 +401,8 @@ ampd_daily_emissions_2016_2018_9_52 <- setDT(ampd_daily_emissions_2016_2018_9_52
   NOx..tons. = mean(NOx..tons., na.rm=TRUE)),
   by = .( ORISPL_CODE, isoweek)]
 
-ampd_daily_emissions_2016_2018_9_52 <- ampd_daily_emissions_2016_2018_9_52 %>%
-  filter (ORISPL_CODE %in% facility )
+# ampd_daily_emissions_2016_2018_9_52 <- ampd_daily_emissions_2016_2018_9_52 %>%
+#   filter (ORISPL_CODE %in% facility )
 
 
 datalist = list()
@@ -434,8 +449,8 @@ ampd_daily_emissions_2018_2018_9_52 <- setDT(ampd_daily_emissions_2018_2018_9_52
   NOx..tons. = mean(NOx..tons., na.rm=TRUE)),
   by = .( ORISPL_CODE, isoweek)]
 
-ampd_daily_emissions_2018_2018_9_52 <- ampd_daily_emissions_2018_2018_9_52 %>%
-  filter (ORISPL_CODE %in% facility )
+# ampd_daily_emissions_2018_2018_9_52 <- ampd_daily_emissions_2018_2018_9_52 %>%
+#   filter (ORISPL_CODE %in% facility )
 
 
 datalist = list()
@@ -497,10 +512,7 @@ all.nox.emission<- all.nox.emission %>% filter (SUM_OP_TIME>0 & !r=="NA")
 
 # write.fst(all.nox.emission, "data/all.nox.emission.2019.fst")
 
-all.nox.emission <- read.fst("data/all.nox.emission.2019.fst")
-
-
-
+all.nox.emission <- setDT(read.fst("data/all.nox.emission.2019.fst"))
 
 #box plot consideing all percentage of operation
 all.nox.emission %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot()  +
@@ -515,28 +527,57 @@ all.nox.emission %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot()  
 all.nox.emission %>% ggplot(aes(x=group, y= NMGE, fill=group)) + geom_boxplot() +
   scale_y_continuous(trans = 'log10',labels = scales::number_format(accuracy = 0.01))+
   labs(x="", y="Normalized Mean Gross Error", title = "all percentage of operation in 2020") +
-   theme_bw() +theme(legend.position = "none")
+   theme_bw() +theme(legend.position = "none") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none") 
 
 all.nox.emission %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot() +
-   labs(x="", y="Normalized Mean Bias", title = "all percentage of operation in 2020")
+  scale_y_continuous(trans = 'log10',labels = scales::number_format(accuracy = 0.01))+
+  labs(x="", y="NMBr", title = "all percentage of operation in 2020") +
+  theme_bw() +theme(legend.position = "none") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none") 
+  
 
 
 all.nox.emission %>% ggplot(aes(x=group, y= RMSE, fill=group)) + geom_boxplot() +
   scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01)) +
   labs(x="", y="RMSE (NOx tons/week)", title = "all percentage of operation in 2020") +
-  theme_bw() +theme(legend.position = "none")
+  theme_bw() +theme(legend.position = "none") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
 
 all.nox.emission %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot() +
-  labs(x="", y="MB", title = "all percentage of operation in 2020") +
-   theme_bw() +theme(legend.position = "none")
+  scale_y_continuous(trans = 'log10',labels = scales::number_format(accuracy = 0.01))+
+  labs(x="", y="Mean Bias", title = "all percentage of operation in 2020") +
+  theme_bw() +theme(legend.position = "none") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none") 
 
 all.nox.emission %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot() +
   scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01)) +
   labs(x="", y="MGE (NOx tons/week)", title = "all percentage of operation in 2020") +
-  theme_bw() +theme(legend.position = "none")
+  theme_bw() +theme(legend.position = "none") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
 
 all.nox.emission %>% ggplot(aes(x=group, y= FAC2, fill=group)) + geom_boxplot() +
-  labs(x="", y="Fractional Bias", title = "facilities operating >75% in 2020") +
+  labs(x="", y="Fractional Bias", title = "all percentage of operation in 2020") +
   stat_summary(aes(label=sprintf("%1.1f", ..y..),),
                geom="text",
                fun = function(y) boxplot.stats(y)$stats,
@@ -544,7 +585,7 @@ all.nox.emission %>% ggplot(aes(x=group, y= FAC2, fill=group)) + geom_boxplot() 
                size=3.5) + theme_bw() +theme(legend.position = "none")
 
 all.nox.emission %>% ggplot(aes(x=group, y= r, fill=group)) + geom_boxplot() +
-  labs(x="", y="Pearson R", title = "facilities operating >75% in 2020") +
+  labs(x="", y="Pearson R", title = "all percentage of operation in 2020") +
   stat_summary(aes(label=sprintf("%1.1f", ..y..),),
                geom="text",
                fun = function(y) boxplot.stats(y)$stats,
@@ -553,8 +594,10 @@ all.nox.emission %>% ggplot(aes(x=group, y= r, fill=group)) + geom_boxplot() +
 
 #box plot consideing more than 75% operation in 2020
 
-all.nox.emission.75 <- all.nox.emission %>%  filter(SUM_OP_TIME >=0.5*max(all.nox.emission$SUM_OP_TIME)
-                                                    & SUM_OP_TIME <= 0.75*max(all.nox.emission$SUM_OP_TIME))
+# based on percentile
+summary(all.nox.emission$SUM_OP_TIME)
+
+all.nox.emission.75 <- all.nox.emission %>%  filter(SUM_OP_TIME >= 15402.72)
 all.nox.emission.75 %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot()  +
   labs(x="", y="Index of Agreement", title = "facilities operating >75% in 2020") +
   stat_summary(aes(label=sprintf("%1.1f", ..y..),),
@@ -565,7 +608,11 @@ all.nox.emission.75 %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot(
 
 all.nox.emission.75 %>%  ggplot(aes(x=group, y= NMGE, fill=group)) + geom_boxplot() +
   labs(x="", y="Normalized Mean Gross Error", title = "facilities operating >75% in 2020")   +
-  scale_y_continuous(trans = 'log10',labels = scales::number_format(accuracy = 0.01))
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
 
 all.nox.emission.75 %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot()  +
   stat_summary(aes(label=sprintf("%1.1f", ..y..),),
@@ -576,7 +623,12 @@ all.nox.emission.75 %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot(
 all.nox.emission.75 %>% ggplot(aes(x=group, y= RMSE, fill=group)) + geom_boxplot() +
   scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01)) +
   labs(x="", y="RMSE (NOx tons/week)", title = "facilities operating >75% in 2020") +
-   theme_bw() +theme(legend.position = "none")
+   theme_bw() +theme(legend.position = "none")  +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
 all.nox.emission.75 %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot() +
   labs(x="", y="MB", title = "facilities operating >75% in 2020") +
   stat_summary(aes(label=sprintf("%1.1f", ..y..),),
@@ -587,7 +639,12 @@ all.nox.emission.75 %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot()
 all.nox.emission.75 %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot() +
   scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01)) +
   labs(x="", y="Mean Gross Error (NOx tons/week)", title = "facilities operating >75% in 2020") +
-   theme_bw() +theme(legend.position = "none")
+   theme_bw() +theme(legend.position = "none") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
 
 all.nox.emission.75 %>% ggplot(aes(x=group, y= FAC2, fill=group)) + geom_boxplot() +
   labs(x="", y="Fractional Bias", title = "facilities operating >75% in 2020") +
@@ -607,48 +664,121 @@ all.nox.emission.75 %>% ggplot(aes(x=group, y= r, fill=group)) + geom_boxplot() 
 
 #box plot consideing less than 25% operation
 
-all.nox.emission.25 <- all.nox.emission %>%  filter(SUM_OP_TIME <0.25*max(all.nox.emission$SUM_OP_TIME))
-all.nox.emission.25 %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot()
-all.nox.emission.25 %>% ggplot(aes(x=group, y= r.sqd.r, fill=group)) + geom_boxplot() +labs(y="R squared")
+all.nox.emission.25 <- all.nox.emission %>%  filter(SUM_OP_TIME <3543.98) #25% percentile
+all.nox.emission.25 %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot() +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.5),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+  
 all.nox.emission.25 %>% ggplot(aes(x=group, y= NMGE, fill=group)) + geom_boxplot() + scale_y_continuous(trans = 'log10',
                                                                                                         labels = scales::number_format(accuracy = 0.01))
 all.nox.emission.25 %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot()
 all.nox.emission.25 %>% ggplot(aes(x=group, y= RMSE, fill=group)) + geom_boxplot() +
-  scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01))
+  scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01)) +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.5),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
 all.nox.emission.25 %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot()
-all.nox.emission.25 %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot()+ scale_y_continuous(trans = 'log10',
-                                                                                                      labels = scales::number_format(accuracy = 0.01))
+all.nox.emission.25 %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot()+ 
+  scale_y_continuous(trans = 'log10',labels = scales::number_format(accuracy = 0.01)) +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.5),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
 
 
-#box plot consideing 25% to 50% operation
+#box plot consideing 25% to 100% operation
 
-all.nox.emission.25.50 <- all.nox.emission %>%  filter(SUM_OP_TIME >=0.25*max(all.nox.emission$SUM_OP_TIME)
-                                                       & SUM_OP_TIME < 0.50*max(all.nox.emission$SUM_OP_TIME))
-all.nox.emission.25.50 %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot()
-all.nox.emission.25.50 %>% ggplot(aes(x=group, y= r.sqd.r, fill=group)) + geom_boxplot()
-all.nox.emission.25.50 %>% ggplot(aes(x=group, y= NMGE, fill=group)) + geom_boxplot()
-all.nox.emission.25.50 %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot()
-all.nox.emission.25.50 %>% ggplot(aes(x=group, y= RMSE, fill=group)) + geom_boxplot() + scale_y_continuous(trans = 'log10',
-                                                                                                           labels = scales::number_format(accuracy = 0.01))
-all.nox.emission.25.50 %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot()
-all.nox.emission.25.50 %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot() + scale_y_continuous(trans = 'log10',
-                                                                                                          labels = scales::number_format(accuracy = 0.01))
+all.nox.emission.25.100 <- all.nox.emission %>%  filter(SUM_OP_TIME >=3543.98)
+all.nox.emission.25.100 %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot()+
+  labs(x="", y="Index of Agreement", title = "facilities operating >25% in 2020") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.nox.emission.25.100 %>% ggplot(aes(x=group, y= NMGE, fill=group)) + geom_boxplot()+
+  labs(x="", y="NMGE", title = "facilities operating >25% in 2020") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.nox.emission.25.100 %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot()+
+  labs(x="", y="NMB", title = "facilities operating >25% in 2020") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.nox.emission.25.100 %>% ggplot(aes(x=group, y= RMSE, fill=group)) + geom_boxplot() + 
+  scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01))+
+  labs(x="", y="RMSE", title = "facilities operating >25% in 2020") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.nox.emission.25.100 %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot() +
+   labs(x="", y="MB", title = "facilities operating >25% in 2020") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.nox.emission.25.100 %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot() + 
+  scale_y_continuous(trans = 'log10',labels = scales::number_format(accuracy = 0.01)) +
+  labs(x="", y="MGE", title = "facilities operating >25% in 2020") +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
 
 
-#box plot consideing 50% to 75% operation
+#box plot consideing more than 50%
 
-all.nox.emission.50.75 <- all.nox.emission %>%  filter(SUM_OP_TIME >=0.5*max(all.nox.emission$SUM_OP_TIME)
-                                                    & SUM_OP_TIME <= 0.75*max(all.nox.emission$SUM_OP_TIME))
-all.nox.emission.50.75 %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot()
-all.nox.emission.50.75 %>% ggplot(aes(x=group, y= r.sqd.r, fill=group)) + geom_boxplot()
-all.nox.emission.50.75 %>% ggplot(aes(x=group, y= NMGE, fill=group)) + geom_boxplot() + scale_y_continuous(trans = 'log10',
-                                                                                                           labels = scales::number_format(accuracy = 0.01))
-all.nox.emission.50.75 %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot()
-all.nox.emission.50.75 %>% ggplot(aes(x=group, y= RMSE, fill=group)) + geom_boxplot() + scale_y_continuous(trans = 'log10',
-                                                                                                           labels = scales::number_format(accuracy = 0.01))
-all.nox.emission.50.75 %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot()
-all.nox.emission.50.75 %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot() + scale_y_continuous(trans = 'log10',
-                                                                                                          labels = scales::number_format(accuracy = 0.01))
+all.nox.emission.50.100 <- all.nox.emission %>%  filter(SUM_OP_TIME >=11103.02)
+all.nox.emission.50.100 %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot()
+
+all.nox.emission.50.100 %>% ggplot(aes(x=group, y= NMGE, fill=group)) + geom_boxplot() +
+  scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01))  +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.nox.emission.50.100 %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot()  +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.nox.emission.50.100 %>% ggplot(aes(x=group, y= RMSE, fill=group)) + geom_boxplot() + 
+  scale_y_continuous(trans = 'log10',  labels = scales::number_format(accuracy = 0.01)) +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.nox.emission.50.100 %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot()  +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
+all.nox.emission.50.100 %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot() + 
+  scale_y_continuous(trans = 'log10',  labels = scales::number_format(accuracy = 0.01))  +
+  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
+               geom="text",
+               fun = function(y) boxplot.stats(y)$stats,
+               position=position_nudge(x=0.45),
+               size=3.5) + theme_bw() +theme(legend.position = "none")
 
 
 
