@@ -19,9 +19,9 @@ library(gridExtra)
 library(ggmap)
 library(Rmisc)
 
-# setwd ("/projects/HAQ_LAB/mrasel/R/causal-study-COVID-beyond")
+setwd ("/projects/HAQ_LAB/mrasel/R/causal-study-COVID-beyond")
 
-setwd ("/Volumes/GoogleDrive/My Drive/R/causal-study-COVID-beyond")
+# setwd ("/Volumes/GoogleDrive/My Drive/R/causal-study-COVID-beyond")
 
 #getting all electric facilities in the US
 ampd_daily_units_ec <- read.fst ("data/emis_met_2010_2020.fst")
@@ -160,7 +160,7 @@ for (i in 1:length(id)) {
 
 #taking facilities opearating more than 10% in 2020
 
-operation <- operation %>%  filter (V50>10)
+operation <- operation %>%  filter (V50>15)
 
 ID_operating_25pct <- as.vector(unique(operation$V44))
 
