@@ -1,3 +1,4 @@
+#Data clean #script 2
 #cleaning data to get facilities to be used in gsynth model
 rm(list = ls())
 
@@ -19,9 +20,9 @@ library(gridExtra)
 library(ggmap)
 library(Rmisc)
 
-# setwd ("/projects/HAQ_LAB/mrasel/R/causal-study")
+setwd ("/projects/HAQ_LAB/mrasel/R/causal-study-COVID-beyond")
 
-setwd ("/Volumes/GoogleDrive/My Drive/R/causal-study-COVID-beyond")
+# setwd ("/Volumes/GoogleDrive/My Drive/R/causal-study-COVID-beyond")
 
 #getting all electric facilities in the US
 ampd_daily_units_ec <- read.fst ("data/ampd_daily_emission_met_2010_2020.fst")
@@ -97,7 +98,7 @@ ampd_daily_all_units$tornado <- as.numeric(ampd_daily_all_units$tornado)
 
 rm(ampd_daily_no_less_2015) #to save R working memory
 
-#discarding
+#discarding facilities with no meteoroogy
 
 ampd_daily_all_units2 <- ampd_daily_all_units
 
@@ -105,10 +106,14 @@ dfm <- as.data.frame(matrix(nrow = 1200, ncol = 1))
 
 for (i in 1:length(facility)) {
   rs.1<- ampd_daily_all_units2 %>% filter (ORISPL_CODE==facility[i])
-  if (max(na.omit(rs.1$tornado))==0 | max(na.omit(rs.1$thunder))==0 ) {
-    rs.1 <- unique(rs.1$ORISPL_CODE)
-    dfm [i, ] <- rs.1 }
+  if (max(na.omit(rs.1$mean_temp))==0 | max(na.omit(rs.1$dewpoint))==0 |
+      max(na.omit(rs.1$visibility))==0 | max(na.omit(rs.1$wind_speed))==0 |
+      max(na.omit(rs.1$precipitation))==0 | max(na.omit(rs.1$fog))==0 |
+      max(na.omit(rs.1$rain))==0 | max(na.omit(rs.1$snow))==0 |
+      max(na.omit(rs.1$hail))==0 | max(na.omit(rs.1$thunder))==0 ) {
+    rs.2 <- unique(rs.1$ORISPL_CODE)
+    dfm [i, ] <- rs.2 }
 }
-y <- unique(df.yr$V1)
+y <- unique(dfm$V1)
 y<-as.vector(y[!is.na(y)])
 
