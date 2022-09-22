@@ -38,7 +38,7 @@ mask.usa <- sf::as_Spatial(us_states)[ us_states$state_abbr %in% us_states.names
 #mapply( hyads_to_pm25_unit, rep( 2013:2015, each = 12), 1:12,
 lapply( years.run.sel,
         hyads_to_pm25_unit,
-        fstart = file.path( hyads.dir, 'grids_exposures_byunit_'),
+        fstart.total = file.path( hyads.dir, 'grids_exposures_total_'),
         fstart_out = file.path( hyadsPM25.dir, 'grids_pm25_byunit_'),
         model.dataset = preds.ann.hyads06w05,
         model.name = 'model.cv', # 'model.gam'

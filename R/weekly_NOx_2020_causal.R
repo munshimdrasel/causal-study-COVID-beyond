@@ -215,7 +215,9 @@ ampd_facility <- ampd_facility %>% filter (ORISPL_CODE %in% facility & year==202
 ampd_facility <- ampd_facility %>%  dplyr::select ( STATE, ORISPL_CODE, Fuel.Type..Primary.,
                                          Facility.Latitude, Facility.Longitude,
                                          County, County.Code, FIPS.Code, Source.Category, Unit.Type,
-                                   SO2.Control.s., NOx.Control.s.,PM.Control.s., Hg.Control.s. )
+                                   SO2.Control.s., NOx.Control.s.,PM.Control.s., Hg.Control.s., EPA.Region,
+                                   NERC.Region, Associated.Stacks, Program.s., SO2.Phase, NOx.Phase,
+                                   Unit.Type)
 
 
 ampd_facility <- distinct(ampd_facility, .keep_all = T)
@@ -242,4 +244,6 @@ names(ac.ct.nox.emission)[names(ac.ct.nox.emission) == 'facility[i]'] <- 'facili
 all.facility.nox.2020 <- merge (all.facility.nox.2020, ac.ct.nox.emission, by = c( "facility", "week" ))
 
 write.fst(all.facility.nox.2020, "data/all.facility.nox.2020.fst")
+
+x <- read.fst("data/all.facility.nox.2020.fst")
 

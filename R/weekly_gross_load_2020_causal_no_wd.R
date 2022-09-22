@@ -1,3 +1,4 @@
+#modeling for Gross loads
 rm(list = ls())
 
 library(gsynth)
@@ -26,10 +27,10 @@ ampd_daily_all_units<- read.fst ("data/ampd_daily_cleaned_facility.fst")
 
 
 ampd_daily_select <- ampd_daily_all_units %>% 
-  dplyr::select(ORISPL_CODE, date, STATE, UNITID, ID, year, month, day, 
+  dplyr::select(ORISPL_CODE, date, STATE, UNITID, ID, year, month, day, Gross.Load..MW.h., SUM_OP_TIME, HEAT.INPUT, 
                 SO2..tons., NOx..tons., pr, tmmx, rmax, vs, th, Fuel.Type..Primary. )
 
-ampd_daily_select <- ampd_daily_select
+ampd_daily_select <- ampd_daily_select 
 
 facility <- as.vector(unique(ampd_daily_select$ORISPL_CODE))
 
@@ -40,7 +41,7 @@ facility <- as.vector(unique(ampd_daily_select$ORISPL_CODE))
 #   ampd_daily_all_unit <- ampd_daily_select %>% filter (ORISPL_CODE %in% facility.name & year==2020)
 #   ampd_daily_all_unit.op <- ampd_daily_all_unit %>% 
 #     mutate(op.pct =(length(ampd_daily_all_unit$NOx..tons. [ampd_daily_all_unit$NOx..tons. >0])/
-#                       length(ampd_daily_all_unit$NOx..tons. ))*100)
+#        length(ampd_daily_all_unit$NOx..tons. ))*100)
 #   ampd_daily_all_unit <- ampd_daily_all_unit.op 
 #   return(ampd_daily_all_unit)
 # }
@@ -69,6 +70,9 @@ facility <- as.vector(unique(ampd_daily_select$ORISPL_CODE))
 
 ampd_daily_to_weekly <- setDT(ampd_daily_select)[, .(SO2..tons. = sum(SO2..tons., na.rm=TRUE),
                                                      NOx..tons. = sum(NOx..tons., na.rm=TRUE),
+                                                     Gross.Load..MW.h. = sum(Gross.Load..MW.h., na.rm=TRUE),
+                                                     SUM_OP_TIME = sum(SUM_OP_TIME,na.rm=TRUE),
+                                                     HEAT.INPUT=sum(HEAT.INPUT, na.rm=TRUE),
                                                      pr= sum(pr, na.rm=T),
                                                      tmmx=mean(tmmx, na.rm=T),
                                                      vs= mean(vs, na.rm=T),
@@ -85,43 +89,43 @@ ampd_weekly <- ampd_daily_to_weekly %>% filter ( year <=2020 & th>0) #wind direc
 ampd_daily_all_units <- ampd_weekly
 facility <- as.vector(unique(ampd_daily_all_units$ORISPL_CODE))
 
-# save(facility, file="data/facility_so2_2020.RData")
-load ("data/facility_so2_2020.RData")
-# 
+# save(facility, file="data/facility_nox_2020.RData")
+load ("data/facility_nox_2020.RData")
+
 # fileConn<-file("output.txt")
 # 
 # gsynth.fn <- function(facility.name) {
 #   ampd_daily_all_unit <- ampd_daily_all_units %>% filter (ORISPL_CODE %in% facility.name )
 #   all_ampd <- ampd_daily_all_unit
 #   id_selected <-  unique( ampd_daily_all_unit$ID)
-#   all_ampd <-  all_ampd %>%  dplyr::select (STATE, year, week, ORISPL_CODE, ID, SO2..tons.,
+#   all_ampd <-  all_ampd %>%  dplyr::select (STATE, year, week, ORISPL_CODE, ID, Gross.Load..MW.h., HEAT.INPUT, SUM_OP_TIME,
 #                                             pr, tmmx, rmax, vs, th)
-#   # all_ampd$SO2..tons.[is.na(all_ampd$SO2..tons.)] <-  0
-# 
+#   # all_ampd$NOx..tons.[is.na(all_ampd$NOx..tons.)] <-  0
+#   
 #   all_ampd <- as.data.table(all_ampd)
-# 
+#   
 #   #setting intervention
 #   all_ampd <- all_ampd[, inputed := 0]
 #   all_ampd$inputed[all_ampd$year==2020 & all_ampd$week>8 &  all_ampd$ID %in% id_selected] <- 1
-# 
+#   
 #   all_ampd <- all_ampd [, id := paste(year, ID, sep = "_")]
-# 
-#   all_ampd_final <- all_ampd%>% dplyr::select (year, week, id, SO2..tons.,  inputed,
+#   
+#   all_ampd_final <- all_ampd%>% dplyr::select (year, week, id, inputed, Gross.Load..MW.h.,
 #                                                pr, tmmx, rmax, vs, th)
-# 
-# 
-#   synth_eq <- SO2..tons. ~ inputed+ tmmx + rmax + pr + th + vs
-# 
+#   
+#   
+#   synth_eq <- Gross.Load..MW.h. ~ inputed+ tmmx + rmax + pr + vs
+#   
 #   paste("Facility now running", facility.name, unique(ampd_daily_all_unit$STATE), sep= " ")
-# 
-#   # synth_eq <- SO2..tons. ~ inputed+  tmmx + rmax + pr + th + vs + day.id
+#   
+#   # synth_eq <- NOx..tons. ~ inputed+  tmmx + rmax + pr + th + vs + day.id
 #   tryCatch({
 #     #Running gsynth
 #     out <<- gsynth(synth_eq,
 #                    data=all_ampd_final,
-#                    index = c("id","week"), na.rm=T, force = "two-way", se=TRUE, nboots=1000,
+#                    index = c("id","week"), na.rm=T, force = "two-way", se=FALSE, nboots=1000,
 #                    CV = TRUE, seed =  123, estimator = "mc", parallel=T, inference = "nonparametric")
-# 
+#     
 #     x <- as.data.frame(out$Y.bar)
 #     y <- as.data.frame(out$time)
 #     # m <- as.data.frame(rep((facility), times=30))
@@ -130,7 +134,7 @@ load ("data/facility_so2_2020.RData")
 #     # somdate2 <- substr(somDate,7,10)
 #     # som.date <- as.numeric(gsub("-", "", as.character(somdate2)))
 #     # xx <- z %>% filter(out$time <= "8")
-# 
+#     
 #     stats <- as.data.table(modStats(z, mod = "Y.ct.bar", obs = "Y.tr.bar"))
 #     # data_plots <- plot(out, type = "missing", theme.bw = TRUE,
 #     # main = paste(facility.name),)
@@ -147,46 +151,48 @@ load ("data/facility_so2_2020.RData")
 #   })
 #   return(all)
 # }
-# result_so2_weekly_2020 <- lapply(facility, gsynth.fn)
+# result_Gross.Load..MW.h._weekly_2020 <- lapply(facility, gsynth.fn)
 # close(fileConn)
 # 
 # 
-# save(result_so2_weekly_2020, file="data/result_so2_weekly_2020.RData")
-load ("data/result_so2_weekly_2020.RData")
+# save(result_Gross.Load..MW.h._weekly_2020, file="data/result_Gross.Load..MW.h._weekly_2020.RData")
 
-# 
-# result_so2_weekly_2020_test <- list()
+
+load ("data/result_Gross.Load..MW.h._weekly_2020.RData")
+load ("data/facility_nox_2020.RData")
+
+# result_nox_weekly_2020_test <- list()
 # facility_test <- list()
 # 
-# for (i in 1:length(result_so2_weekly_2020)){
-#   sublist = result_so2_weekly_2020[[i]]
+# for (i in 1:length(result_nox_weekly_2020)){
+#   sublist = result_nox_weekly_2020[[i]]
 #   if (length(sublist) == 3)
 #   {
-#     result_so2_weekly_2020_test[[i]] <-result_so2_weekly_2020[[i]] # this does achieve the desired result
+#     result_nox_weekly_2020_test[[i]] <-result_nox_weekly_2020_no_wd.RData[[i]] # this does achieve the desired result
 #     facility_test[[i]] <- facility[[i]]
 #   }
 #   else
 #   {
-#     result_so2_weekly_2020_test[[i]] <- NULL # this does achieve the desired result
+#     result_nox_weekly_2020_test[[i]] <- NULL # this does achieve the desired result
 #   }
 # 
 # }
 # 
-# result_so2_weekly_2020_test2 <- result_so2_weekly_2020_test[-which(sapply(result_so2_weekly_2020_test, is.null))]
+# result_nox_weekly_2020_test2 <- result_nox_weekly_2020_test[-which(sapply(result_nox_weekly_2020_test, is.null))]
 # 
-# result_so2_weekly_2020 <- result_so2_weekly_2020_test2
+# result_nox_weekly_2020 <- result_nox_weekly_2020_test2
 # facility <- unlist(facility_test, recursive = TRUE, use.names = TRUE)
-# 
 
 
 
-#getting counterfactua plots for 2020 so2 emissions
+
+#getting counterfactua plots for 2020 NOx emissions
 counterfactual_plots <- list()
 for (i in 1: length(facility)) {
-  counterfactual_plots[[i]] <- result_so2_weekly_2020 [[i]][[3]]
+  counterfactual_plots[[i]] <- result_Gross.Load..MW.h._weekly_2020 [[i]][[3]]
 }
 layout <- rbind(c(1,2), c(3,4), c(5,6))
-pdf(file = 'plots/counterfactual_plots_so2_2020.pdf', onefile = TRUE, paper = 'A4',
+pdf(file = 'plots/counterfactual_plots_gross_load_2020.pdf', onefile = TRUE, paper = 'A4',
     width = 9, height = 9, pointsize = 1)
 marrangeGrob(grobs = counterfactual_plots, ncol = 2, nrow = 3, layout_matrix = layout)
 dev.off()
@@ -197,8 +203,8 @@ st = list()
 
 for (i in 1:length(facility)) {
   fac.1 <- as.data.frame(facility[i])
-  att.avg <-result_so2_weekly_2020[[i]][[2]]$est.att
-  week <- 1:nrow(att.avg)
+  att.avg <-result_Gross.Load..MW.h._weekly_2020[[i]][[2]]$att
+  week <- 1:length(att.avg)
   st[[i]] <- cbind(fac.1,att.avg, week)
 }
 
@@ -224,26 +230,26 @@ ampd_facility <- ampd_facility %>%  dplyr::select ( STATE, ORISPL_CODE, Fuel.Typ
 ampd_facility <- distinct(ampd_facility, .keep_all = T)
 names(ampd_facility)[names(ampd_facility) == 'ORISPL_CODE'] <- 'facility'
 
-all.facility.so2.2020 <- merge (st, ampd_facility, by = "facility")
+all.facility.gross.load.2020 <- merge (st, ampd_facility, by = "facility")
 
 
 # getting each units actual emission into a dataframe====================================================
 datalist = list()
 
 for (i in 1:length(facility)) {
-  so2.emis <- na.omit(as.data.frame(result_so2_weekly_2020[[i]][[2]]$Y.bar))
-  so2.emis <- so2.emis %>% dplyr::select(-Y.co.bar)
-  so2.emis$week <- c(1:nrow(so2.emis)) #leap year 2020
+  gross.load <- na.omit(as.data.frame(result_Gross.Load..MW.h._weekly_2020[[i]][[2]]$Y.bar))
+  gross.load <- gross.load %>% dplyr::select(-Y.co.bar)
+  gross.load$week <- c(1:nrow(gross.load)) #leap year 2020
   fac.1 <- as.data.frame(facility[i])
-  datalist[[i]] <- cbind(fac.1,so2.emis) # add it to your list
+  datalist[[i]] <- cbind(fac.1,gross.load) # add it to your list
 }
 
-ac.ct.so2.emission = do.call(rbind, datalist)
+ac.ct.gross.load = do.call(rbind, datalist)
 
-names(ac.ct.so2.emission)[names(ac.ct.so2.emission) == 'facility[i]'] <- 'facility'
+names(ac.ct.gross.load)[names(ac.ct.gross.load) == 'facility[i]'] <- 'facility'
 
-all.facility.so2.2020 <- merge (all.facility.so2.2020, ac.ct.so2.emission, by = c( "facility", "week" ))
+all.facility.gross.load.2020 <- merge (all.facility.gross.load.2020, ac.ct.gross.load, by = c( "facility", "week" ))
 
-write.fst(all.facility.so2.2020, "data/all.facility.so2.2020.fst")
+names(all.facility.gross.load.2020)[names(all.facility.gross.load.2020) == 'att.avg'] <- 'ATT'
 
-
+write.fst(all.facility.gross.load.2020, "data/all.facility.gross.load.2020.fst")

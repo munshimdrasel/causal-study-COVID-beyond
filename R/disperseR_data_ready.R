@@ -23,11 +23,11 @@ library(gridExtra)
 library(Rmisc)
 library(reshape2)
 
-# setwd ("/projects/HAQ_LAB/mrasel/R/causal-study")
+# setwd ("/projects/HAQ_LAB/mrasel/R/causal-study-COVID-beyond")
 
 setwd ("/Volumes/GoogleDrive/My Drive/R/causal-study-COVID-beyond")
 
-load ("data/result_so2_weekly_2020.RData")
+load ("data/result_so2_weekly_2020_no_wd.RData")
 load ("data/facility_so2_2020.RData")
 
 
@@ -73,7 +73,8 @@ for (i in 1:length(facility)) {
   }
 }
 
-big_data = do.call(cbind, datalist)
+datalist2 <- datalist[-which(sapply(datalist, is.null))]
+big_data = do.call(cbind, datalist2)
 
 big_data$week <- 1:53
 
@@ -139,6 +140,8 @@ ampd_monthly_ct <- ampd_monthly_ct %>%  mutate(ID, ID=gsub("2020_", "", ID))
 
 #getting ampd actual monthly emission file
 ampd_monthly_ac <- as.data.table(read.fst ("/Volumes/GoogleDrive/My Drive/R/ampd-raw-data-processing/data/ampd_monthly_all.fst"))
+
+# ampd_monthly_ac <- as.data.table(read.fst ("/projects/HAQ_LAB/mrasel/R/ampd-raw-data-processing/data/ampd_monthly_all.fst"))
 
 id_ct <- as.vector(unique(ampd_monthly_ct$ID))
 

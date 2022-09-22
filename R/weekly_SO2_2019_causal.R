@@ -18,6 +18,7 @@ library(ggmap)
 library(Rmisc)
 library(hrbrthemes)
 library(viridis)
+library(cowplot)
 
 # setwd ("/projects/HAQ_LAB/mrasel/R/causal-study-COVID-beyond")
 
@@ -177,6 +178,60 @@ pdf(file = 'plots/counterfactual_plots_so2_2019.pdf', onefile = TRUE, paper = 'A
 marrangeGrob(grobs = counterfactual_plots, ncol = 3, nrow = 3, layout_matrix = layout)
 dev.off()
 
+
+
+#getting 2019 So2 ATT, actual and counterfactual emissions
+st = list()
+
+for (i in 1:length(facility)) {
+  fac.1 <- as.data.frame(facility[i])
+  att.avg <-result_so2_weekly_2019[[i]][[2]]$est.att
+  week <- 1:nrow(att.avg)
+  st[[i]] <- cbind(fac.1,att.avg, week)
+}
+
+st = do.call(rbind, st)
+
+names(st)[names(st) == 'facility[i]'] <- 'facility'
+
+
+
+ampd_facility<- read.fst ("data/ampd_daily_cleaned_facility.fst")
+
+ampd_facility <- ampd_facility %>% filter (ORISPL_CODE %in% facility & year==2019)
+
+ampd_facility <- ampd_facility %>%  dplyr::select ( STATE, ORISPL_CODE, Fuel.Type..Primary.,
+                                                    Facility.Latitude, Facility.Longitude,
+                                                    County, County.Code, FIPS.Code, Source.Category, Unit.Type,
+                                                    SO2.Control.s., NOx.Control.s.,PM.Control.s., Hg.Control.s. )
+
+
+ampd_facility <- distinct(ampd_facility, .keep_all = T)
+names(ampd_facility)[names(ampd_facility) == 'ORISPL_CODE'] <- 'facility'
+
+all.facility.so2.2019 <- merge (st, ampd_facility, by = "facility")
+
+
+# getting each units actual emission into a dataframe====================================================
+datalist = list()
+
+for (i in 1:length(facility)) {
+  so2.emis <- na.omit(as.data.frame(result_so2_weekly_2019[[i]][[2]]$Y.bar))
+  so2.emis <- so2.emis %>% dplyr::select(-Y.co.bar)
+  so2.emis$week <- c(1:nrow(so2.emis)) #leap year 2019
+  fac.1 <- as.data.frame(facility[i])
+  datalist[[i]] <- cbind(fac.1,so2.emis) # add it to your list
+}
+
+ac.ct.so2.emission = do.call(rbind, datalist)
+
+names(ac.ct.so2.emission)[names(ac.ct.so2.emission) == 'facility[i]'] <- 'facility'
+
+all.facility.so2.2019 <- merge (all.facility.so2.2019, ac.ct.so2.emission, by = c( "facility", "week" ))
+
+write.fst(all.facility.so2.2019, "data/all.facility.so2.2019.fst")
+
+
 # ===============================================================================================
 #                                           Model evaluation
 # ===============================================================================================
@@ -252,49 +307,107 @@ ac.ct.so2.emission %>%
 #issue with SO2 emissions data
 #some facilities operated long however there was no SO2 emissions from them. facility 9 for example.
 
-# # ===============================average of 2016, 2017, 2018 vs 2019 emission======================
-# # ampd_daily_emissions <- read.fst ("/Volumes/GoogleDrive/My Drive/R/ampd-raw-data-processing/data/ampd_daily_emission.fst")
-ampd_daily_emissions_2010_2018_9_52 <- ampd_daily_all_units %>%
+# ===============================simple average model evaluation=====================
+
+#calculating 9 year, 7 year, 5 year, 3 year average. these values are counterfactual emissions
+#2019 emissions are actual emissions
+#We're taking all facilities operating since 2010 to 2019
+#if a facility before 2019 got retired, we're placing them on 2019 records as 0 emissions with 0 operation time
+
+
+
+ampd_daily_emissions <- read.fst ("/Volumes/GoogleDrive/My Drive/R/ampd-raw-data-processing/data/ampd_daily_emission.fst")
+
+
+ampd_daily_to_weekly_9 <- setDT(ampd_daily_emissions)[, .(SO2..tons. = sum(SO2..tons., na.rm=TRUE),
+                                                          NOx..tons. = sum(NOx..tons., na.rm=TRUE),
+                                                          SUM_OP_TIME=sum(SUM_OP_TIME, na.rm=T)),
+                                                      by = .(STATE, ORISPL_CODE, ID, year,
+                                                             isoweek(date))]
+#2010-2018
+ampd_daily_emissions_2010_2018 <- ampd_daily_to_weekly_9  %>%
   filter (year %in% c( 2010:2018) &
-            isoweek >=9) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons.)
+            isoweek >=9) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons., SUM_OP_TIME)
 
-ampd_daily_emissions_2010_2018_9_52 <- setDT(ampd_daily_emissions_2010_2018_9_52)[, (
-  SO2..tons. = mean(SO2..tons., na.rm=TRUE)),
-  by = .( ORISPL_CODE, isoweek)]
+ampd_daily_emissions_2019 <- ampd_daily_to_weekly_9  %>%
+  filter (year %in% c( 2019) &
+            isoweek >=9) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons.,SUM_OP_TIME)
 
-ampd_daily_emissions_2010_2018_9_52 <- ampd_daily_emissions_2010_2018_9_52 %>%
-  filter (ORISPL_CODE %in% facility )
+ampd_daily_emissions_2010_2018 <- setDT(ampd_daily_emissions_2010_2018)[ , 
+                                                                         .(SO2..tons. = mean(SO2..tons., na.rm=TRUE),
+                                                                           SUM_OP_TIME=mean(SUM_OP_TIME, na.rm=TRUE)),
+                                                                         by = .(ORISPL_CODE, isoweek)]
+
+ampd_daily_emissions_2019<- setDT(ampd_daily_emissions_2019)[, .(
+  SO2..tons. = mean(SO2..tons., na.rm=TRUE),
+  SUM_OP_TIME=mean(SUM_OP_TIME, na.rm=TRUE)),
+  by = .(ORISPL_CODE, isoweek)]
+
+facility.2010.2018 <- as.vector(unique(ampd_daily_emissions_2010_2018$ORISPL_CODE))
+facility.2019 <- as.vector(unique(ampd_daily_emissions_2019$ORISPL_CODE))
+
+# facility.9yr <- intersect(facility.9, facility.2019)
+# ampd_daily_emissions_2010_2018_9_52 <- ampd_daily_emissions_2010_2018_9_52 %>%
+#   filter (ORISPL_CODE %in% facility )
+
+fac.not.2019 <- setdiff(facility.2010.2018,facility.2019)
+
+#putting 0 emissions to the facilities that were not operating on 2019
+datalist= list()
+for (i in 1:length(fac.not.2019)) {
+  isoweek <- c(1:52)
+  ORISPL_CODE <- fac.not.2019[i]
+  SO2..tons. <- 0
+  SUM_OP_TIME <- 0
+  df <- data.frame(ORISPL_CODE,isoweek,SO2..tons.,SUM_OP_TIME)
+  datalist[[i]] <- df
+  
+}
+
+hypo <- do.call(rbind, datalist)
+
+ampd_daily_emissions_2019<- rbind(ampd_daily_emissions_2019,hypo) 
+
+facility.2019 <- as.vector(unique(ampd_daily_emissions_2019$ORISPL_CODE))
 
 
+#actual vs counterfactual statistics
 datalist = list()
 
-for (i in 1:length(facility)) {
-  ampd_daily_all_unit <- ampd_daily_emissions_2010_2018_9_52 %>% filter (ORISPL_CODE %in% facility[i] )
-  names(ampd_daily_all_unit)[names(ampd_daily_all_unit) == 'V1'] <- 'ct.so2.tons' #average of previous years
-  avg.so2.emis <- ampd_daily_all_unit
+for (i in 1:length(facility.2010.2018)) {
+  ampd_daily_all_unit.2010.2018 <- ampd_daily_emissions_2010_2018 %>% filter (ORISPL_CODE %in% facility.2010.2018[i] )
+  names(ampd_daily_all_unit.2010.2018)[names(ampd_daily_all_unit.2010.2018) == 'SO2..tons.'] <- 'ct.so2.tons' #average of previous years
+  avg.so2.emis <- ampd_daily_all_unit.2010.2018
   names(avg.so2.emis)[names(avg.so2.emis) == 'isoweek'] <- 'week'
   avg.so2.emis$week <- as.character(avg.so2.emis$week)
-
-  so2.emis <- na.omit(as.data.frame(result_so2_weekly_2019[[i]][[2]]$Y.bar))
-  so2.emis <- so2.emis %>% dplyr::select(Y.tr.bar) #taking average 2019 emission data
-  so2.emis$week <- c(1:52)
-  so2.emis <- so2.emis %>% filter(week>=9)
+  
+  ampd_daily_all_unit.2019 <- ampd_daily_emissions_2019 %>% filter (ORISPL_CODE %in% facility.2010.2018[i] )
+  names(ampd_daily_all_unit.2019)[names(ampd_daily_all_unit.2019) == 'SO2..tons.'] <- 'ac.so2.tons' #average of previous years
+  so2.emis <- ampd_daily_all_unit.2019
+  names(so2.emis)[names(so2.emis) == 'isoweek'] <- 'week'
   so2.emis$week <- as.character(so2.emis$week)
-  so2.emis$ORISPL_CODE <- facility[i]
-  names(so2.emis)[names(so2.emis) == 'Y.tr.bar'] <- 'ac.so2.tons' #actual 2019 dataset
-
+  
+  
   so2.emis.linear <- merge(avg.so2.emis, so2.emis, by= c("ORISPL_CODE", "week"))
   stats <- as.data.table(modStats(so2.emis.linear, mod = "ct.so2.tons", obs = "ac.so2.tons"))
-  fac.1 <- as.data.frame(facility[i])
+  fac.1 <- as.data.frame(facility.2010.2018[i])
   datalist[[i]] <- cbind(fac.1,stats) # add it to your list
 }
 
 sim.avg.ac.ct.so2.emission.9 = do.call(rbind, datalist)
 
-names(sim.avg.ac.ct.so2.emission.9)[names(sim.avg.ac.ct.so2.emission.9) == 'facility[i]'] <- 'facility'
+names(sim.avg.ac.ct.so2.emission.9)[names(sim.avg.ac.ct.so2.emission.9) == 'facility.2010.2018[i]'] <- 'facility'
 
-sim.avg.ac.ct.so2.emission.9 <- merge(sim.avg.ac.ct.so2.emission.9, fac.op.2019 , by= c("facility" ))
+fac.op.time.sim <- ampd_daily_emissions_2019
+fac.op.2019.sim <- fac.op.time.sim %>%  filter (ORISPL_CODE %in% facility.2010.2018)
 
+fac.op.2019.sim <- setDT(fac.op.2019.sim)[, .(SUM_OP_TIME=sum(SUM_OP_TIME, na.rm=T)),
+                                          by = .(ORISPL_CODE)]
+
+names(fac.op.2019.sim)[names(fac.op.2019.sim) == 'ORISPL_CODE'] <- 'facility'
+
+sim.avg.ac.ct.so2.emission.9 <- merge(sim.avg.ac.ct.so2.emission.9, fac.op.2019.sim , by= c("facility" ))
+sim.avg.ac.ct.so2.emission.9$year <- 2019
 
 
 sim.avg.ac.ct.so2.emission.9 <- sim.avg.ac.ct.so2.emission.9  #2010:2018 simple average vs 2019 emission
@@ -302,194 +415,372 @@ sim.avg.ac.ct.so2.emission.9 <- sim.avg.ac.ct.so2.emission.9  #2010:2018 simple 
 
 
 # =========2012 to 2018 average
-ampd_daily_emissions_2012_2018_9_52 <- ampd_daily_all_units %>%
+ampd_daily_emissions_2012_2018 <- ampd_daily_to_weekly_9  %>%
   filter (year %in% c( 2012:2018) &
-            isoweek >=9) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons.)
+            isoweek >=9) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons., SUM_OP_TIME)
 
-ampd_daily_emissions_2012_2018_9_52 <- setDT(ampd_daily_emissions_2012_2018_9_52)[, (
-  SO2..tons. = mean(SO2..tons., na.rm=TRUE)),
-  by = .( ORISPL_CODE, isoweek)]
+ampd_daily_emissions_2019 <- ampd_daily_to_weekly_9  %>%
+  filter (year %in% c( 2019) &
+            isoweek >=9) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons.,SUM_OP_TIME)
 
-ampd_daily_emissions_2012_2018_9_52 <- ampd_daily_emissions_2012_2018_9_52 %>%
-  filter (ORISPL_CODE %in% facility )
+ampd_daily_emissions_2012_2018 <- setDT(ampd_daily_emissions_2012_2018)[ , 
+                                                                         .(SO2..tons. = mean(SO2..tons., na.rm=TRUE),
+                                                                           SUM_OP_TIME=mean(SUM_OP_TIME, na.rm=TRUE)),
+                                                                         by = .(ORISPL_CODE, isoweek)]
+
+ampd_daily_emissions_2019<- setDT(ampd_daily_emissions_2019)[, .(
+  SO2..tons. = mean(SO2..tons., na.rm=TRUE),
+  SUM_OP_TIME=mean(SUM_OP_TIME, na.rm=TRUE)),
+  by = .(ORISPL_CODE, isoweek)]
+
+facility.2012.2018 <- as.vector(unique(ampd_daily_emissions_2012_2018$ORISPL_CODE))
+facility.2019 <- as.vector(unique(ampd_daily_emissions_2019$ORISPL_CODE))
+
+# facility.9yr <- intersect(facility.9, facility.2019)
+# ampd_daily_emissions_2012_2018_9_52 <- ampd_daily_emissions_2012_2018_9_52 %>%
+#   filter (ORISPL_CODE %in% facility )
+
+fac.not.2019 <- setdiff(facility.2012.2018,facility.2019)
+
+#putting 0 emissions to the facilities that were not operating on 2019
+datalist= list()
+for (i in 1:length(fac.not.2019)) {
+  isoweek <- c(1:52)
+  ORISPL_CODE <- fac.not.2019[i]
+  SO2..tons. <- 0
+  SUM_OP_TIME <- 0
+  df <- data.frame(ORISPL_CODE,isoweek,SO2..tons.,SUM_OP_TIME)
+  datalist[[i]] <- df
+  
+}
+
+hypo <- do.call(rbind, datalist)
+
+ampd_daily_emissions_2019<- rbind(ampd_daily_emissions_2019,hypo) 
+
+facility.2019 <- as.vector(unique(ampd_daily_emissions_2019$ORISPL_CODE))
 
 
+#actual vs counterfactual statistics
 datalist = list()
 
-for (i in 1:length(facility)) {
-  ampd_daily_all_unit <- ampd_daily_emissions_2012_2018_9_52 %>% filter (ORISPL_CODE %in% facility[i] )
-  names(ampd_daily_all_unit)[names(ampd_daily_all_unit) == 'V1'] <- 'ct.so2.tons' #average of previous years
-  avg.so2.emis <- ampd_daily_all_unit
+for (i in 1:length(facility.2012.2018)) {
+  ampd_daily_all_unit.2012.2018 <- ampd_daily_emissions_2012_2018 %>% filter (ORISPL_CODE %in% facility.2012.2018[i] )
+  names(ampd_daily_all_unit.2012.2018)[names(ampd_daily_all_unit.2012.2018) == 'SO2..tons.'] <- 'ct.so2.tons' #average of previous years
+  avg.so2.emis <- ampd_daily_all_unit.2012.2018
   names(avg.so2.emis)[names(avg.so2.emis) == 'isoweek'] <- 'week'
   avg.so2.emis$week <- as.character(avg.so2.emis$week)
-
-  so2.emis <- na.omit(as.data.frame(result_so2_weekly_2019[[i]][[2]]$Y.bar))
-  so2.emis <- so2.emis %>% dplyr::select(Y.tr.bar) #taking average 2019 emission data
-  so2.emis$week <- c(1:52)
-  so2.emis <- so2.emis %>% filter(week>=9)
+  
+  ampd_daily_all_unit.2019 <- ampd_daily_emissions_2019 %>% filter (ORISPL_CODE %in% facility.2012.2018[i] )
+  names(ampd_daily_all_unit.2019)[names(ampd_daily_all_unit.2019) == 'SO2..tons.'] <- 'ac.so2.tons' #average of previous years
+  so2.emis <- ampd_daily_all_unit.2019
+  names(so2.emis)[names(so2.emis) == 'isoweek'] <- 'week'
   so2.emis$week <- as.character(so2.emis$week)
-  so2.emis$ORISPL_CODE <- facility[i]
-  names(so2.emis)[names(so2.emis) == 'Y.tr.bar'] <- 'ac.so2.tons' #actual 2019 dataset
-
+  
+  
   so2.emis.linear <- merge(avg.so2.emis, so2.emis, by= c("ORISPL_CODE", "week"))
   stats <- as.data.table(modStats(so2.emis.linear, mod = "ct.so2.tons", obs = "ac.so2.tons"))
-  fac.1 <- as.data.frame(facility[i])
+  fac.1 <- as.data.frame(facility.2012.2018[i])
   datalist[[i]] <- cbind(fac.1,stats) # add it to your list
 }
 
 sim.avg.ac.ct.so2.emission.7 = do.call(rbind, datalist)
 
-names(sim.avg.ac.ct.so2.emission.7)[names(sim.avg.ac.ct.so2.emission.7) == 'facility[i]'] <- 'facility'
+names(sim.avg.ac.ct.so2.emission.7)[names(sim.avg.ac.ct.so2.emission.7) == 'facility.2012.2018[i]'] <- 'facility'
 
-sim.avg.ac.ct.so2.emission.7 <- merge(sim.avg.ac.ct.so2.emission.7, fac.op.2019 , by= c("facility" ))
+fac.op.time.sim <- ampd_daily_emissions_2019
+fac.op.2019.sim <- fac.op.time.sim %>%  filter (ORISPL_CODE %in% facility.2012.2018)
+
+fac.op.2019.sim <- setDT(fac.op.2019.sim)[, .(SUM_OP_TIME=sum(SUM_OP_TIME, na.rm=T)),
+                                          by = .( ORISPL_CODE)]
+
+names(fac.op.2019.sim)[names(fac.op.2019.sim) == 'ORISPL_CODE'] <- 'facility'
+
+sim.avg.ac.ct.so2.emission.7 <- merge(sim.avg.ac.ct.so2.emission.7, fac.op.2019.sim , by= c("facility" ))
+sim.avg.ac.ct.so2.emission.7$year <- 2019
 
 
+sim.avg.ac.ct.so2.emission.7 <- sim.avg.ac.ct.so2.emission.7  #2012:2018 simple average vs 2019 emission
 
 
-sim.avg.ac.ct.so2.emission.7<- sim.avg.ac.ct.so2.emission.7   #2012:2018
 
 
 
 # =========2014 to 2018 average
 
-ampd_daily_emissions_2014_2018_9_52 <- ampd_daily_all_units %>%
+ampd_daily_emissions_2014_2018 <- ampd_daily_to_weekly_9  %>%
   filter (year %in% c( 2014:2018) &
-            isoweek >=9) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons.)
+            isoweek >=9) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons., SUM_OP_TIME)
 
-ampd_daily_emissions_2014_2018_9_52 <- setDT(ampd_daily_emissions_2014_2018_9_52)[, (
-  SO2..tons. = mean(SO2..tons., na.rm=TRUE)),
-  by = .( ORISPL_CODE, isoweek)]
+ampd_daily_emissions_2019 <- ampd_daily_to_weekly_9  %>%
+  filter (year %in% c( 2019) &
+            isoweek >=9) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons.,SUM_OP_TIME)
 
-ampd_daily_emissions_2014_2018_9_52 <- ampd_daily_emissions_2014_2018_9_52 %>%
-  filter (ORISPL_CODE %in% facility )
+ampd_daily_emissions_2014_2018 <- setDT(ampd_daily_emissions_2014_2018)[ , 
+                                                                         .(SO2..tons. = mean(SO2..tons., na.rm=TRUE),
+                                                                           SUM_OP_TIME=mean(SUM_OP_TIME, na.rm=TRUE)),
+                                                                         by = .(ORISPL_CODE, isoweek)]
+
+ampd_daily_emissions_2019<- setDT(ampd_daily_emissions_2019)[, .(
+  SO2..tons. = mean(SO2..tons., na.rm=TRUE),
+  SUM_OP_TIME=mean(SUM_OP_TIME, na.rm=TRUE)),
+  by = .(ORISPL_CODE, isoweek)]
+
+facility.2014.2018 <- as.vector(unique(ampd_daily_emissions_2014_2018$ORISPL_CODE))
+facility.2019 <- as.vector(unique(ampd_daily_emissions_2019$ORISPL_CODE))
+
+# facility.9yr <- intersect(facility.9, facility.2019)
+# ampd_daily_emissions_2014_2018_9_52 <- ampd_daily_emissions_2014_2018_9_52 %>%
+#   filter (ORISPL_CODE %in% facility )
+
+fac.not.2019 <- setdiff(facility.2014.2018,facility.2019)
+
+#putting 0 emissions to the facilities that were not operating on 2019
+datalist= list()
+for (i in 1:length(fac.not.2019)) {
+  isoweek <- c(1:52)
+  ORISPL_CODE <- fac.not.2019[i]
+  SO2..tons. <- 0
+  SUM_OP_TIME <- 0
+  df <- data.frame(ORISPL_CODE,isoweek,SO2..tons.,SUM_OP_TIME)
+  datalist[[i]] <- df
+  
+}
+
+hypo <- do.call(rbind, datalist)
+
+ampd_daily_emissions_2019<- rbind(ampd_daily_emissions_2019,hypo) 
+
+facility.2019 <- as.vector(unique(ampd_daily_emissions_2019$ORISPL_CODE))
 
 
+#actual vs counterfactual statistics
 datalist = list()
 
-for (i in 1:length(facility)) {
-  ampd_daily_all_unit <- ampd_daily_emissions_2014_2018_9_52 %>% filter (ORISPL_CODE %in% facility[i] )
-  names(ampd_daily_all_unit)[names(ampd_daily_all_unit) == 'V1'] <- 'ct.so2.tons' #average of previous years
-  avg.so2.emis <- ampd_daily_all_unit
+for (i in 1:length(facility.2014.2018)) {
+  ampd_daily_all_unit.2014.2018 <- ampd_daily_emissions_2014_2018 %>% filter (ORISPL_CODE %in% facility.2014.2018[i] )
+  names(ampd_daily_all_unit.2014.2018)[names(ampd_daily_all_unit.2014.2018) == 'SO2..tons.'] <- 'ct.so2.tons' #average of previous years
+  avg.so2.emis <- ampd_daily_all_unit.2014.2018
   names(avg.so2.emis)[names(avg.so2.emis) == 'isoweek'] <- 'week'
   avg.so2.emis$week <- as.character(avg.so2.emis$week)
-
-  so2.emis <- na.omit(as.data.frame(result_so2_weekly_2019[[i]][[2]]$Y.bar))
-  so2.emis <- so2.emis %>% dplyr::select(Y.tr.bar) #taking average 2019 emission data
-  so2.emis$week <- c(1:52)
-  so2.emis <- so2.emis %>% filter(week>=9)
+  
+  ampd_daily_all_unit.2019 <- ampd_daily_emissions_2019 %>% filter (ORISPL_CODE %in% facility.2014.2018[i] )
+  names(ampd_daily_all_unit.2019)[names(ampd_daily_all_unit.2019) == 'SO2..tons.'] <- 'ac.so2.tons' #average of previous years
+  so2.emis <- ampd_daily_all_unit.2019
+  names(so2.emis)[names(so2.emis) == 'isoweek'] <- 'week'
   so2.emis$week <- as.character(so2.emis$week)
-  so2.emis$ORISPL_CODE <- facility[i]
-  names(so2.emis)[names(so2.emis) == 'Y.tr.bar'] <- 'ac.so2.tons' #actual 2019 dataset
-
+  
+  
   so2.emis.linear <- merge(avg.so2.emis, so2.emis, by= c("ORISPL_CODE", "week"))
   stats <- as.data.table(modStats(so2.emis.linear, mod = "ct.so2.tons", obs = "ac.so2.tons"))
-  fac.1 <- as.data.frame(facility[i])
+  fac.1 <- as.data.frame(facility.2014.2018[i])
   datalist[[i]] <- cbind(fac.1,stats) # add it to your list
 }
 
 sim.avg.ac.ct.so2.emission.5 = do.call(rbind, datalist)
 
-names(sim.avg.ac.ct.so2.emission.5)[names(sim.avg.ac.ct.so2.emission.5) == 'facility[i]'] <- 'facility'
+names(sim.avg.ac.ct.so2.emission.5)[names(sim.avg.ac.ct.so2.emission.5) == 'facility.2014.2018[i]'] <- 'facility'
 
-sim.avg.ac.ct.so2.emission.5 <- merge(sim.avg.ac.ct.so2.emission.5, fac.op.2019 , by= c("facility" ))
+fac.op.time.sim <- ampd_daily_emissions_2019
+fac.op.2019.sim <- fac.op.time.sim %>%  filter (ORISPL_CODE %in% facility.2014.2018)
+
+fac.op.2019.sim <- setDT(fac.op.2019.sim)[, .(SUM_OP_TIME=sum(SUM_OP_TIME, na.rm=T)),
+                                          by = .( ORISPL_CODE)]
+
+names(fac.op.2019.sim)[names(fac.op.2019.sim) == 'ORISPL_CODE'] <- 'facility'
 
 
-sim.avg.ac.ct.so2.emission.5<- sim.avg.ac.ct.so2.emission.5   #2014:2018
+sim.avg.ac.ct.so2.emission.5 <- merge(sim.avg.ac.ct.so2.emission.5, fac.op.2019.sim , by= c("facility" ))
+sim.avg.ac.ct.so2.emission.5$year <- 2019
+
+
+sim.avg.ac.ct.so2.emission.5 <- sim.avg.ac.ct.so2.emission.5  #2014:2018 simple average vs 2019 emission
+
+
 
 
 # =========2016 to 2018 average
-ampd_daily_emissions_2016_2018_9_52 <- ampd_daily_all_units %>%
+ampd_daily_emissions_2016_2018 <- ampd_daily_to_weekly_9  %>%
   filter (year %in% c( 2016:2018) &
-            isoweek >=9) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons.)
+            isoweek >=9) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons., SUM_OP_TIME)
 
-ampd_daily_emissions_2016_2018_9_52 <- setDT(ampd_daily_emissions_2016_2018_9_52)[, (
-  SO2..tons. = mean(SO2..tons., na.rm=TRUE)),
-  by = .( ORISPL_CODE, isoweek)]
+ampd_daily_emissions_2019 <- ampd_daily_to_weekly_9  %>%
+  filter (year %in% c( 2019) &
+            isoweek >=9) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons.,SUM_OP_TIME)
 
-ampd_daily_emissions_2016_2018_9_52 <- ampd_daily_emissions_2016_2018_9_52 %>%
-  filter (ORISPL_CODE %in% facility )
+ampd_daily_emissions_2016_2018 <- setDT(ampd_daily_emissions_2016_2018)[ , 
+                                                                         .(SO2..tons. = mean(SO2..tons., na.rm=TRUE),
+                                                                           SUM_OP_TIME=mean(SUM_OP_TIME, na.rm=TRUE)),
+                                                                         by = .(ORISPL_CODE, isoweek)]
+
+ampd_daily_emissions_2019<- setDT(ampd_daily_emissions_2019)[, .(
+  SO2..tons. = mean(SO2..tons., na.rm=TRUE),
+  SUM_OP_TIME=mean(SUM_OP_TIME, na.rm=TRUE)),
+  by = .(ORISPL_CODE, isoweek)]
+
+facility.2016.2018 <- as.vector(unique(ampd_daily_emissions_2016_2018$ORISPL_CODE))
+facility.2019 <- as.vector(unique(ampd_daily_emissions_2019$ORISPL_CODE))
+
+# facility.9yr <- intersect(facility.9, facility.2019)
+# ampd_daily_emissions_2016_2018_9_52 <- ampd_daily_emissions_2016_2018_9_52 %>%
+#   filter (ORISPL_CODE %in% facility )
+
+fac.not.2019 <- setdiff(facility.2016.2018,facility.2019)
+
+#putting 0 emissions to the facilities that were not operating on 2019
+datalist= list()
+for (i in 1:length(fac.not.2019)) {
+  isoweek <- c(1:52)
+  ORISPL_CODE <- fac.not.2019[i]
+  SO2..tons. <- 0
+  SUM_OP_TIME <- 0
+  df <- data.frame(ORISPL_CODE,isoweek,SO2..tons.,SUM_OP_TIME)
+  datalist[[i]] <- df
+  
+}
+
+hypo <- do.call(rbind, datalist)
+
+ampd_daily_emissions_2019<- rbind(ampd_daily_emissions_2019,hypo) 
+
+facility.2019 <- as.vector(unique(ampd_daily_emissions_2019$ORISPL_CODE))
 
 
+#actual vs counterfactual statistics
 datalist = list()
 
-for (i in 1:length(facility)) {
-  ampd_daily_all_unit <- ampd_daily_emissions_2016_2018_9_52 %>% filter (ORISPL_CODE %in% facility[i] )
-  names(ampd_daily_all_unit)[names(ampd_daily_all_unit) == 'V1'] <- 'ct.so2.tons' #average of previous years
-  avg.so2.emis <- ampd_daily_all_unit
+for (i in 1:length(facility.2016.2018)) {
+  ampd_daily_all_unit.2016.2018 <- ampd_daily_emissions_2016_2018 %>% filter (ORISPL_CODE %in% facility.2016.2018[i] )
+  names(ampd_daily_all_unit.2016.2018)[names(ampd_daily_all_unit.2016.2018) == 'SO2..tons.'] <- 'ct.so2.tons' #average of previous years
+  avg.so2.emis <- ampd_daily_all_unit.2016.2018
   names(avg.so2.emis)[names(avg.so2.emis) == 'isoweek'] <- 'week'
   avg.so2.emis$week <- as.character(avg.so2.emis$week)
-
-  so2.emis <- na.omit(as.data.frame(result_so2_weekly_2019[[i]][[2]]$Y.bar))
-  so2.emis <- so2.emis %>% dplyr::select(Y.tr.bar) #taking average 2019 emission data
-  so2.emis$week <- c(1:52)
-  so2.emis <- so2.emis %>% filter(week>=9)
+  
+  ampd_daily_all_unit.2019 <- ampd_daily_emissions_2019 %>% filter (ORISPL_CODE %in% facility.2016.2018[i] )
+  names(ampd_daily_all_unit.2019)[names(ampd_daily_all_unit.2019) == 'SO2..tons.'] <- 'ac.so2.tons' #average of previous years
+  so2.emis <- ampd_daily_all_unit.2019
+  names(so2.emis)[names(so2.emis) == 'isoweek'] <- 'week'
   so2.emis$week <- as.character(so2.emis$week)
-  so2.emis$ORISPL_CODE <- facility[i]
-  names(so2.emis)[names(so2.emis) == 'Y.tr.bar'] <- 'ac.so2.tons' #actual 2019 dataset
-
+  
+  
   so2.emis.linear <- merge(avg.so2.emis, so2.emis, by= c("ORISPL_CODE", "week"))
   stats <- as.data.table(modStats(so2.emis.linear, mod = "ct.so2.tons", obs = "ac.so2.tons"))
-  fac.1 <- as.data.frame(facility[i])
+  fac.1 <- as.data.frame(facility.2016.2018[i])
   datalist[[i]] <- cbind(fac.1,stats) # add it to your list
 }
 
 sim.avg.ac.ct.so2.emission.3 = do.call(rbind, datalist)
 
-names(sim.avg.ac.ct.so2.emission.3)[names(sim.avg.ac.ct.so2.emission.3) == 'facility[i]'] <- 'facility'
+names(sim.avg.ac.ct.so2.emission.3)[names(sim.avg.ac.ct.so2.emission.3) == 'facility.2016.2018[i]'] <- 'facility'
 
-sim.avg.ac.ct.so2.emission.3 <- merge(sim.avg.ac.ct.so2.emission.3, fac.op.2019 , by= c("facility" ))
+fac.op.time.sim <- ampd_daily_emissions_2019
+fac.op.2019.sim <- fac.op.time.sim %>%  filter (ORISPL_CODE %in% facility.2016.2018)
+
+fac.op.2019.sim <- setDT(fac.op.2019.sim)[, .(SUM_OP_TIME=sum(SUM_OP_TIME, na.rm=T)),
+                                          by = .( ORISPL_CODE)]
+
+names(fac.op.2019.sim)[names(fac.op.2019.sim) == 'ORISPL_CODE'] <- 'facility'
 
 
-sim.avg.ac.ct.so2.emission.3<- sim.avg.ac.ct.so2.emission.3   #2016:2018
+sim.avg.ac.ct.so2.emission.3 <- merge(sim.avg.ac.ct.so2.emission.3, fac.op.2019.sim , by= c("facility" ))
+sim.avg.ac.ct.so2.emission.3$year <- 2019
+
+
+sim.avg.ac.ct.so2.emission.3 <- sim.avg.ac.ct.so2.emission.3  #2016:2018 simple average vs 2019 emission
+
+
 
 
 
 # =========2018 to 2018 average means 2018 vs 2019 emissions check
 
-ampd_daily_emissions_2018_2018_9_52 <- ampd_daily_all_units %>%
+ampd_daily_emissions_2018_2018 <- ampd_daily_to_weekly_9  %>%
   filter (year %in% c( 2018:2018) &
-            isoweek >=9) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons.)
+            isoweek >=9) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons., SUM_OP_TIME)
 
-ampd_daily_emissions_2018_2018_9_52 <- setDT(ampd_daily_emissions_2018_2018_9_52)[, (
-  SO2..tons. = mean(SO2..tons., na.rm=TRUE)),
-  by = .( ORISPL_CODE, isoweek)]
+ampd_daily_emissions_2019 <- ampd_daily_to_weekly_9  %>%
+  filter (year %in% c( 2019) &
+            isoweek >=9) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons.,SUM_OP_TIME)
 
-ampd_daily_emissions_2018_2018_9_52 <- ampd_daily_emissions_2018_2018_9_52 %>%
-  filter (ORISPL_CODE %in% facility )
+ampd_daily_emissions_2018_2018 <- setDT(ampd_daily_emissions_2018_2018)[ , 
+                                                                         .(SO2..tons. = mean(SO2..tons., na.rm=TRUE),
+                                                                           SUM_OP_TIME=mean(SUM_OP_TIME, na.rm=TRUE)),
+                                                                         by = .(ORISPL_CODE, isoweek)]
+
+ampd_daily_emissions_2019<- setDT(ampd_daily_emissions_2019)[, .(
+  SO2..tons. = mean(SO2..tons., na.rm=TRUE),
+  SUM_OP_TIME=mean(SUM_OP_TIME, na.rm=TRUE)),
+  by = .(ORISPL_CODE, isoweek)]
+
+facility.2018.2018 <- as.vector(unique(ampd_daily_emissions_2018_2018$ORISPL_CODE))
+facility.2019 <- as.vector(unique(ampd_daily_emissions_2019$ORISPL_CODE))
+
+# facility.9yr <- intersect(facility.9, facility.2019)
+# ampd_daily_emissions_2018_2018_9_52 <- ampd_daily_emissions_2018_2018_9_52 %>%
+#   filter (ORISPL_CODE %in% facility )
+
+fac.not.2019 <- setdiff(facility.2018.2018,facility.2019)
+
+#putting 0 emissions to the facilities that were not operating on 2019
+datalist= list()
+for (i in 1:length(fac.not.2019)) {
+  isoweek <- c(1:52)
+  ORISPL_CODE <- fac.not.2019[i]
+  SO2..tons. <- 0
+  SUM_OP_TIME <- 0
+  df <- data.frame(ORISPL_CODE,isoweek,SO2..tons.,SUM_OP_TIME)
+  datalist[[i]] <- df
+  
+}
+
+hypo <- do.call(rbind, datalist)
+
+ampd_daily_emissions_2019<- rbind(ampd_daily_emissions_2019,hypo) 
+
+facility.2019 <- as.vector(unique(ampd_daily_emissions_2019$ORISPL_CODE))
 
 
+#actual vs counterfactual statistics
 datalist = list()
 
-for (i in 1:length(facility)) {
-  ampd_daily_all_unit <- ampd_daily_emissions_2018_2018_9_52 %>% filter (ORISPL_CODE %in% facility[i] )
-  names(ampd_daily_all_unit)[names(ampd_daily_all_unit) == 'V1'] <- 'ct.so2.tons' #average of previous years
-  avg.so2.emis <- ampd_daily_all_unit
+for (i in 1:length(facility.2018.2018)) {
+  ampd_daily_all_unit.2018.2018 <- ampd_daily_emissions_2018_2018 %>% filter (ORISPL_CODE %in% facility.2018.2018[i] )
+  names(ampd_daily_all_unit.2018.2018)[names(ampd_daily_all_unit.2018.2018) == 'SO2..tons.'] <- 'ct.so2.tons' #average of previous years
+  avg.so2.emis <- ampd_daily_all_unit.2018.2018
   names(avg.so2.emis)[names(avg.so2.emis) == 'isoweek'] <- 'week'
   avg.so2.emis$week <- as.character(avg.so2.emis$week)
-
-  so2.emis <- na.omit(as.data.frame(result_so2_weekly_2019[[i]][[2]]$Y.bar))
-  so2.emis <- so2.emis %>% dplyr::select(Y.tr.bar) #taking average 2019 emission data
-  so2.emis$week <- c(1:52)
-  so2.emis <- so2.emis %>% filter(week>=9)
+  
+  ampd_daily_all_unit.2019 <- ampd_daily_emissions_2019 %>% filter (ORISPL_CODE %in% facility.2018.2018[i] )
+  names(ampd_daily_all_unit.2019)[names(ampd_daily_all_unit.2019) == 'SO2..tons.'] <- 'ac.so2.tons' #average of previous years
+  so2.emis <- ampd_daily_all_unit.2019
+  names(so2.emis)[names(so2.emis) == 'isoweek'] <- 'week'
   so2.emis$week <- as.character(so2.emis$week)
-  so2.emis$ORISPL_CODE <- facility[i]
-  names(so2.emis)[names(so2.emis) == 'Y.tr.bar'] <- 'ac.so2.tons' #actual 2019 dataset
-
+  
+  
   so2.emis.linear <- merge(avg.so2.emis, so2.emis, by= c("ORISPL_CODE", "week"))
   stats <- as.data.table(modStats(so2.emis.linear, mod = "ct.so2.tons", obs = "ac.so2.tons"))
-  fac.1 <- as.data.frame(facility[i])
+  fac.1 <- as.data.frame(facility.2018.2018[i])
   datalist[[i]] <- cbind(fac.1,stats) # add it to your list
 }
 
 sim.avg.ac.ct.so2.emission.1 = do.call(rbind, datalist)
 
-names(sim.avg.ac.ct.so2.emission.1)[names(sim.avg.ac.ct.so2.emission.1) == 'facility[i]'] <- 'facility'
+names(sim.avg.ac.ct.so2.emission.1)[names(sim.avg.ac.ct.so2.emission.1) == 'facility.2018.2018[i]'] <- 'facility'
 
-sim.avg.ac.ct.so2.emission.1 <- merge(sim.avg.ac.ct.so2.emission.1, fac.op.2019 , by= c("facility" ))
+fac.op.time.sim <- ampd_daily_emissions_2019
+fac.op.2019.sim <- fac.op.time.sim %>%  filter (ORISPL_CODE %in% facility.2018.2018)
+
+fac.op.2019.sim <- setDT(fac.op.2019.sim)[, .(SUM_OP_TIME=sum(SUM_OP_TIME, na.rm=T)),
+                                          by = .( ORISPL_CODE)]
+
+names(fac.op.2019.sim)[names(fac.op.2019.sim) == 'ORISPL_CODE'] <- 'facility'
 
 
+sim.avg.ac.ct.so2.emission.1 <- merge(sim.avg.ac.ct.so2.emission.1, fac.op.2019.sim , by= c("facility" ))
+sim.avg.ac.ct.so2.emission.1$year <- 2019
 
-sim.avg.ac.ct.so2.emission.1<- sim.avg.ac.ct.so2.emission.1   #2018:2018
+
+sim.avg.ac.ct.so2.emission.1 <- sim.avg.ac.ct.so2.emission.1  #2018:2018 simple average vs 2019 emission
 
 
 
@@ -513,13 +804,32 @@ all.so2.emission <- rbind(sim.avg.ac.ct.so2.emission.9, sim.avg.ac.ct.so2.emissi
 # all.so2.emission$r.sqd.r <- (all.so2.emission$r)^2
 
 
-all.so2.emission<- all.so2.emission %>% filter (SUM_OP_TIME>0 & !r=="NA")
-
 # write.fst(all.so2.emission, "data/all.so2.emission.2019.fst")
 
 all.so2.emission <- read.fst("data/all.so2.emission.2019.fst")
 
+all.so2.emission<- all.so2.emission %>% filter (SUM_OP_TIME>0 & r != "NA")
 
+groups <- c( "7 year mean", "5 year mean", "3 year mean", "gsynth")
+
+# groups <- c("3 year mean", "gsynth")
+
+
+
+all.so2.emission <- all.so2.emission %>%  filter (group %in% groups )
+
+so2.3 <- all.so2.emission %>%  filter (group %in% c ("3 year mean", "5 year mean", "7 year mean" ))
+
+so2.gsynth <- all.so2.emission %>%  filter (group=="gsynth")
+
+#ttest to compare 3 year mean metrics vs gsynth metrics
+t.test(so2.3$NMGE, so2.gsynth$NMGE, var.equal = T)
+t.test(so2.3$RMSE, so2.gsynth$RMSE, var.equal = T)
+t.test(so2.3$MB, so2.gsynth$MB, var.equal = T)
+t.test(so2.3$NMB, so2.gsynth$NMB, var.equal = T)
+
+summary(so2.3)
+summary(so2.gsynth)
 
 
 #box plot consideing all percentage of operation
@@ -532,35 +842,30 @@ all.so2.emission %>% ggplot(aes(x=group, y= IOA, fill=group)) + geom_boxplot()  
                size=3.5) + theme_bw() +theme(legend.position = "none")
 
 
-all.so2.emission %>% ggplot(aes(x=group, y= NMGE, fill=group)) + geom_boxplot() +
-  scale_y_continuous(trans = 'log10',labels = scales::number_format(accuracy = 0.01))+
-  labs(x="", y="Normalized Mean Gross Error", title = "all percentage of operation in 2020") +
-  theme_bw() +theme(legend.position = "none") +
-  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
-               geom="text",
-               fun = function(y) boxplot.stats(y)$stats,
-               position=position_nudge(x=0.45),
-               size=3.5) + theme_bw() +theme(legend.position = "none") 
-
-all.so2.emission %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot() +
-  labs(x="", y="Normalized Mean Bias", title = "all percentage of operation in 2020")
+nmge.so2 <- all.so2.emission %>% ggplot(aes(x=group, y= NMGE)) + geom_boxplot() + 
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  scale_y_continuous(trans='log10')+
+  labs(x="", y="", title = expression(paste(SO[2] , " NMGE(%) in Log-scale"))) +
+  theme_bw() +theme(legend.position = "none" ,axis.text = element_text(size = 16),
+                    axis.title = element_text(size = 20),
+                    title=element_text(size=20)) 
 
 
-all.so2.emission %>% ggplot(aes(x=group, y= RMSE, fill=group)) + geom_boxplot() +
-  scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01)) +
-  labs(x="", y="RMSE (so2 tons/week)", title = "all percentage of operation in 2020") +
-  theme_bw() +theme(legend.position = "none") +
-  stat_summary(aes(label=sprintf("%1.1f", ..y..),),
-               geom="text",
-               fun = function(y) boxplot.stats(y)$stats,
-               position=position_nudge(x=0.45),
-               size=3.5) + theme_bw() +theme(legend.position = "none")
+ggsave("NMGE_so2.png", path = "./plots/")
 
-all.so2.emission %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot() +
+all.so2.emission %>% ggplot(aes(x=group, y= NMB, fill=group)) + geom_boxplot() + ylim(-0.5,0.5)
+  labs(x="", y="Normalized Mean Bias", title = "all percentage of operation in 2020") + 
+   scale_y_continuous(trans = 'log10',labels = scales::number_format(accuracy = 0.01))
+
+
+all.so2.emission %>% ggplot(aes(x=group, y= RMSE, fill=group)) + geom_boxplot() + ylim(0,0.1) +
+  theme_bw() +theme(legend.position = "none")
+
+all.so2.emission %>% ggplot(aes(x=group, y= MB, fill=group)) + geom_boxplot() + ylim(-0.1,0.1)
   labs(x="", y="MB", title = "all percentage of operation in 2020") +
   theme_bw() +theme(legend.position = "none")
 
-all.so2.emission %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot() +
+all.so2.emission %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot() + ylim(0,0.1)
   scale_y_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01)) +
   labs(x="", y="MGE (so2 tons/week)", title = "all percentage of operation in 2020") +
   theme_bw() +theme(legend.position = "none") +
@@ -571,7 +876,7 @@ all.so2.emission %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxplot() +
                size=3.5) + theme_bw() +theme(legend.position = "none")
 
 all.so2.emission %>% ggplot(aes(x=group, y= FAC2, fill=group)) + geom_boxplot() +
-  labs(x="", y="Fractional Bias", title = "facilities operating >75% in 2020") +
+  labs(x="", y="Fractional Bias", title = "all percentage of operation in 2020") +
   stat_summary(aes(label=sprintf("%1.1f", ..y..),),
                geom="text",
                fun = function(y) boxplot.stats(y)$stats,
@@ -579,12 +884,16 @@ all.so2.emission %>% ggplot(aes(x=group, y= FAC2, fill=group)) + geom_boxplot() 
                size=3.5) + theme_bw() +theme(legend.position = "none")
 
 all.so2.emission %>% ggplot(aes(x=group, y= r, fill=group)) + geom_boxplot() +
-  labs(x="", y="Pearson R", title = "facilities operating >75% in 2020") +
+  labs(x="", y="Pearson R", title = "all percentage of operation in 2020") +
+  theme_bw() +theme(legend.position = "none") +
   stat_summary(aes(label=sprintf("%1.1f", ..y..),),
                geom="text",
                fun = function(y) boxplot.stats(y)$stats,
                position=position_nudge(x=0.5),
-               size=3.5) + theme_bw() +theme(legend.position = "none")
+               size=3.5) 
+
+ggsave("pearson_R_so2.png", path = "./plots/")
+
 
 #box plot consideing more than 75% operation in 2020
 
@@ -812,12 +1121,270 @@ all.so2.emission.50.100 %>% ggplot(aes(x=group, y= MGE, fill=group)) + geom_boxp
 
 # ggsave("R.sq.2019_so2_9_box.png", path = "./plots/")
 
-all.so2.emission.50.100 %>% ggplot(aes(x=RMSE, fill=group)) +
+all.so2.emission %>% ggplot(aes(x=RMSE, fill=group)) +
   geom_histogram(binwidth = 1, alpha=0.5, position = 'identity') +
   labs(x= "RMSE",   y = "Number of facilities",
-       title = "") + theme(legend.position = c(0.8, 0.8)) +
+       title = "") + theme(legend.position = c(0.9, 0.8)) +
   guides(fill=guide_legend(title="Model")) +
-  scale_x_continuous(trans = 'log10', labels = scales::number_format(accuracy = 0.01))
+  scale_x_continuous(trans = 'log2', labels = scales::number_format(accuracy = 0.01))
 
 # ggsave("NMGE2019_so2_3.png", path = "./plots/")
 
+# ============================================================================================
+## so2 weekly check gsynth vs actual vs simple average
+
+ampd_daily_emissions <- read.fst ("/Volumes/GoogleDrive/My Drive/R/ampd-raw-data-processing/data/ampd_daily_emission.fst")
+
+
+ampd_daily_to_weekly_9 <- setDT(ampd_daily_emissions)[, .(SO2..tons. = sum(SO2..tons., na.rm=TRUE),
+                                                          NOx..tons. = sum(NOx..tons., na.rm=TRUE),
+                                                          SUM_OP_TIME=sum(SUM_OP_TIME, na.rm=T)),
+                                                      by = .(STATE, ORISPL_CODE, ID, year,
+                                                             isoweek(date))]
+
+so2.2019 <- read.fst("data/all.facility.so2.2019.fst")
+
+#GSYNTH  and actual
+
+so2.gsynth.actual<- setDT(so2.2019)[, .(actual.so2.emis = sum(Y.tr.bar, na.rm=T),
+                                         ct.so2.emis = sum(Y.ct.bar, na.rm=T)), 
+                                     by = .(week)]
+
+
+#7 year average
+# =========2016 to 2018 average
+ampd_daily_emissions_2012_2018 <- ampd_daily_to_weekly_9  %>%
+  filter (year %in% c( 2012:2018) & isoweek >=1& isoweek<=52) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons.)
+
+ampd_daily_emissions_2012_2018 <- setDT(ampd_daily_emissions_2012_2018)[ , 
+                                                                         .(SO2..tons. = mean(SO2..tons., na.rm=TRUE)),
+                                                                         by = .(ORISPL_CODE, isoweek)]
+
+ampd_daily_emissions_2012_2018 <- setDT(ampd_daily_emissions_2012_2018)[ , 
+                                                                         .(SO2..tons. = sum(SO2..tons., na.rm=TRUE)),
+                                                                         by = .(isoweek)]
+
+
+# 5 year average
+
+# =========2016 to 2018 average
+ampd_daily_emissions_2014_2018 <- ampd_daily_to_weekly_9  %>%
+  filter (year %in% c( 2014:2018) & isoweek >=1& isoweek<=52) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons.)
+
+ampd_daily_emissions_2014_2018 <- setDT(ampd_daily_emissions_2014_2018)[ , 
+                                                                         .(SO2..tons. = mean(SO2..tons., na.rm=TRUE)),
+                                                                         by = .(ORISPL_CODE,isoweek)]
+
+ampd_daily_emissions_2014_2018 <- setDT(ampd_daily_emissions_2014_2018)[ , 
+                                                                         .(SO2..tons. = sum(SO2..tons., na.rm=TRUE)),
+                                                                         by = .(isoweek)]
+# 3 year average
+
+# =========2016 to 2018 average
+ampd_daily_emissions_2016_2018 <- ampd_daily_to_weekly_9  %>%
+  filter (year %in% c( 2016:2018) & isoweek >=1 & isoweek<=52) %>% dplyr::select(ORISPL_CODE,  isoweek, SO2..tons.)
+
+ampd_daily_emissions_2016_2018 <- setDT(ampd_daily_emissions_2016_2018)[ , 
+                                                                         .(SO2..tons. = mean(SO2..tons., na.rm=TRUE)),
+                                                                         by = .(ORISPL_CODE, isoweek)]
+
+ampd_daily_emissions_2016_2018 <- setDT(ampd_daily_emissions_2016_2018)[ , 
+                                                                         .(SO2..tons. = sum(SO2..tons., na.rm=TRUE)),
+                                                                         by = .(isoweek)]
+
+
+names(so2.gsynth.actual)[names(so2.gsynth.actual) == 'ct.so2.emis'] <- 'gsynth.counterfactual.2019'
+names(so2.gsynth.actual)[names(so2.gsynth.actual) == 'actual.so2.emis'] <- 'actual.2019'
+names(ampd_daily_emissions_2016_2018)[names(ampd_daily_emissions_2016_2018) == 'SO2..tons.'] <- '3-year-counterfactual'
+names(ampd_daily_emissions_2014_2018)[names(ampd_daily_emissions_2014_2018) == 'SO2..tons.'] <- '5-year-counterfactual'
+names(ampd_daily_emissions_2012_2018)[names(ampd_daily_emissions_2012_2018) == 'SO2..tons.'] <- '7-year-counterfactual'
+names(ampd_daily_emissions_2016_2018)[names(ampd_daily_emissions_2016_2018) == 'isoweek'] <- 'week'
+names(ampd_daily_emissions_2014_2018)[names(ampd_daily_emissions_2014_2018) == 'isoweek'] <- 'week'
+names(ampd_daily_emissions_2012_2018)[names(ampd_daily_emissions_2012_2018) == 'isoweek'] <- 'week'
+
+df_list <- list(so2.gsynth.actual, ampd_daily_emissions_2016_2018,ampd_daily_emissions_2014_2018, ampd_daily_emissions_2012_2018)
+
+#merge all data frames in list
+df <- df_list %>% reduce(full_join, by='week')
+
+df <- melt(df, id.vars = "week", measure.vars = c("actual.2019", "gsynth.counterfactual.2019",
+                                            "3-year-counterfactual", "5-year-counterfactual",
+                                            "7-year-counterfactual"))
+
+names(df)[names(df) == 'variable'] <- 'group'
+names(df)[names(df) == 'value'] <- 'SO2.tons'
+
+
+dy <- df
+compare.so2 <- dy %>%  ggplot(aes(x=week, y=SO2.tons, color=group)) + 
+  geom_line(aes( size = group) ) +
+    geom_vline(xintercept=8) + geom_vline(xintercept=16) +  
+   annotate("rect", xmin = 8, xmax = 52, ymin = 0, ymax = Inf, fill = "blue", alpha = .1, color = NA) +
+  annotate("rect", xmin = 8, xmax = 16, ymin = 0, ymax = Inf, fill = "green", alpha = .1, color = NA) +
+  theme_bw() + scale_x_continuous(expand = c(0, 0), limits = c(0, 52)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 25000)) + theme (legend.position = c(0.5,0.12),
+                                                                   legend.title = element_blank(),
+                                                                   legend.text = element_text(size = 17),
+                                                                   axis.text = element_text(size = 15),
+                                                                   axis.title = element_text(size = 20),
+                                                                   plot.title = element_text(size=25),
+                                                                   legend.direction = "horizontal") +
+  labs(x="Weeks in 2019", y="", title = expression(paste(SO[2], " Emissions from EGUs, tons"))) +
+  scale_size_manual("group", values=c(2,2,1,1,1), guide="none")+
+   scale_color_manual(values = c("red", "black", "blue", "orange", "yellow"), 
+                      labels = c("actual", "GSYNTH",
+                                 "3 year mean", "5 year mean",
+                                 "7 year mean")) 
+
+ggsave("compare_so2_2019.png", path = "./plots/awma")
+
+## NOx weekly check gsynth vs actual vs simple average
+
+# ampd_daily_emissions <- read.fst ("/Volumes/GoogleDrive/My Drive/R/ampd-raw-data-processing/data/ampd_daily_emission.fst")
+
+
+ampd_daily_to_weekly_9 <- setDT(ampd_daily_emissions)[, .(SO2..tons. = sum(SO2..tons., na.rm=TRUE),
+                                                          NOx..tons. = sum(NOx..tons., na.rm=TRUE),
+                                                          SUM_OP_TIME=sum(SUM_OP_TIME, na.rm=T)),
+                                                      by = .(STATE, ORISPL_CODE, ID, year,
+                                                             isoweek(date))]
+
+nox.2019 <- read.fst("data/all.facility.nox.2019.fst")
+
+#GSYNTH  and actual
+
+nox.gsynth.actual<- setDT(nox.2019)[, .(actual.nox.emis = sum(Y.tr.bar, na.rm=T),
+                                        ct.nox.emis = sum(Y.ct.bar, na.rm=T)), 
+                                    by = .(week)]
+
+
+#7 year average
+# =========2016 to 2018 average
+ampd_daily_emissions_2012_2018 <- ampd_daily_to_weekly_9  %>%
+  filter (year %in% c( 2012:2018) & isoweek >=1& isoweek<=52) %>% dplyr::select(ORISPL_CODE,  isoweek, NOx..tons.)
+
+ampd_daily_emissions_2012_2018 <- setDT(ampd_daily_emissions_2012_2018)[ , 
+                                                                         .(NOx..tons. = mean(NOx..tons., na.rm=TRUE)),
+                                                                         by = .(ORISPL_CODE, isoweek)]
+
+ampd_daily_emissions_2012_2018 <- setDT(ampd_daily_emissions_2012_2018)[ , 
+                                                                         .(NOx..tons. = sum(NOx..tons., na.rm=TRUE)),
+                                                                         by = .(isoweek)]
+
+
+# 5 year average
+
+# =========2016 to 2018 average
+ampd_daily_emissions_2014_2018 <- ampd_daily_to_weekly_9  %>%
+  filter (year %in% c( 2014:2018) & isoweek >=1& isoweek<=52) %>% dplyr::select(ORISPL_CODE,  isoweek, NOx..tons.)
+
+ampd_daily_emissions_2014_2018 <- setDT(ampd_daily_emissions_2014_2018)[ , 
+                                                                         .(NOx..tons. = mean(NOx..tons., na.rm=TRUE)),
+                                                                         by = .(ORISPL_CODE,isoweek)]
+
+ampd_daily_emissions_2014_2018 <- setDT(ampd_daily_emissions_2014_2018)[ , 
+                                                                         .(NOx..tons. = sum(NOx..tons., na.rm=TRUE)),
+                                                                         by = .(isoweek)]
+# 3 year average
+
+# =========2016 to 2018 average
+ampd_daily_emissions_2016_2018 <- ampd_daily_to_weekly_9  %>%
+  filter (year %in% c( 2016:2018) & isoweek >=1 & isoweek<=52) %>% dplyr::select(ORISPL_CODE,  isoweek, NOx..tons.)
+
+ampd_daily_emissions_2016_2018 <- setDT(ampd_daily_emissions_2016_2018)[ , 
+                                                                         .(NOx..tons. = mean(NOx..tons., na.rm=TRUE)),
+                                                                         by = .(ORISPL_CODE, isoweek)]
+
+ampd_daily_emissions_2016_2018 <- setDT(ampd_daily_emissions_2016_2018)[ , 
+                                                                         .(NOx..tons. = sum(NOx..tons., na.rm=TRUE)),
+                                                                         by = .(isoweek)]
+
+
+names(nox.gsynth.actual)[names(nox.gsynth.actual) == 'ct.nox.emis'] <- 'gsynth.counterfactual.2019'
+names(nox.gsynth.actual)[names(nox.gsynth.actual) == 'actual.nox.emis'] <- 'actual.2019'
+names(ampd_daily_emissions_2016_2018)[names(ampd_daily_emissions_2016_2018) == 'NOx..tons.'] <- '3-year-counterfactual'
+names(ampd_daily_emissions_2014_2018)[names(ampd_daily_emissions_2014_2018) == 'NOx..tons.'] <- '5-year-counterfactual'
+names(ampd_daily_emissions_2012_2018)[names(ampd_daily_emissions_2012_2018) == 'NOx..tons.'] <- '7-year-counterfactual'
+names(ampd_daily_emissions_2016_2018)[names(ampd_daily_emissions_2016_2018) == 'isoweek'] <- 'week'
+names(ampd_daily_emissions_2014_2018)[names(ampd_daily_emissions_2014_2018) == 'isoweek'] <- 'week'
+names(ampd_daily_emissions_2012_2018)[names(ampd_daily_emissions_2012_2018) == 'isoweek'] <- 'week'
+
+df_list <- list(nox.gsynth.actual, ampd_daily_emissions_2016_2018,ampd_daily_emissions_2014_2018, ampd_daily_emissions_2012_2018)
+
+#merge all data frames in list
+df <- df_list %>% reduce(full_join, by='week')
+
+df <- melt(df, id.vars = "week", measure.vars = c("actual.2019", "gsynth.counterfactual.2019",
+                                                  "3-year-counterfactual", "5-year-counterfactual",
+                                                  "7-year-counterfactual"))
+
+names(df)[names(df) == 'variable'] <- 'group'
+names(df)[names(df) == 'value'] <- 'nox.tons'
+
+
+compare.nox <- df%>%  ggplot(aes(x=week, y=nox.tons, color=group)) + 
+  geom_line(aes( size = group) ) +
+  geom_vline(xintercept=8) + geom_vline(xintercept=16) +  
+  annotate("rect", xmin = 8, xmax = 52, ymin = 0, ymax = Inf, fill = "blue", alpha = .1, color = NA) +
+  annotate("rect", xmin = 8, xmax = 16, ymin = 0, ymax = Inf, fill = "green", alpha = .1, color = NA) +
+  theme_bw() + scale_x_continuous(expand = c(0, 0), limits = c(0, 52)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0,15000)) + theme (legend.position = "none",
+                                                                   legend.title = element_blank(),
+                                                                   legend.text = element_text(size = 17),
+                                                                   axis.text = element_text(size = 15),
+                                                                   axis.title = element_text(size = 20),
+                                                                   plot.title = element_text(size=25),
+                                                                   legend.direction = "horizontal") +
+  labs(x="Weeks in 2019", y="", title = expression(paste(NO[X], " Emissions from EGUs, tons"))) +
+  scale_size_manual("group", values=c(2,2,1,1,1), guide="none")+
+  scale_color_manual(values = c("red", "black", "blue", "orange", "yellow"), 
+                     labels = c("actual", "GSYNTH",
+                                "3 year mean", "5 year mean",
+                                "7 year mean"))
+  
+
+ggarrange(compare.so2,  compare.nox ,ncol = 2, nrow = 1) 
+
+ggsave("compare_so2_nox_2019.png", path = "./plots/awma", width=18, height=6, units="in")
+
+
+ggsave("compare_nox_2019.png", path = "./plots/", width=16, height=5, units="in")
+
+
+all.nox.emission <- setDT(read.fst("data/all.nox.emission.2019.fst"))
+
+all.nox.emission<- all.nox.emission %>% filter (SUM_OP_TIME>0)
+
+groups <- c( "7 year mean", "5 year mean", "3 year mean", "gsynth")
+
+# groups <- c("3 year mean", "gsynth")
+all.nox.emission <- all.nox.emission %>%  filter (group %in% groups)
+
+nox.3 <- all.nox.emission %>%  filter (group=="3 year mean" )
+nox.gsynth <- all.nox.emission %>%  filter (group=="gsynth")
+
+summary(nox.3)
+
+summary(nox.gsynth)
+
+
+nmge.nox <- all.nox.emission %>% ggplot(aes(x=group, y= NMGE)) + geom_boxplot() + 
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  scale_y_continuous(trans='log10')+
+  labs(x="", y="", title = expression(paste(NO[X] , " NMGE(%) in Log-scale"))) +
+  theme_bw() +theme(legend.position = "none" ,axis.text = element_text(size = 16),
+                    axis.title = element_text(size = 20),
+                    title=element_text(size=20)) 
+
+ggsave("NMGE_nox.png", path = "./plots/")
+
+
+#combining NMGE plot and compare so2 plot 
+
+plot_grid(nmge.so2, 
+          compare.so2, 
+          nmge.nox, compare.nox,
+          labels = c('A', 'B', "C", "D"), 
+          label_size = 15)
+
+ggsave("combined_so2_2019.png", path = "./plots/", width=18, height=12, units="in")

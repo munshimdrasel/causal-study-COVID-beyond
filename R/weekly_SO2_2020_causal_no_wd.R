@@ -87,7 +87,7 @@ facility <- as.vector(unique(ampd_daily_all_units$ORISPL_CODE))
 
 # save(facility, file="data/facility_so2_2020.RData")
 load ("data/facility_so2_2020.RData")
-# 
+
 # fileConn<-file("output.txt")
 # 
 # gsynth.fn <- function(facility.name) {
@@ -110,7 +110,7 @@ load ("data/facility_so2_2020.RData")
 #                                                pr, tmmx, rmax, vs, th)
 # 
 # 
-#   synth_eq <- SO2..tons. ~ inputed+ tmmx + rmax + pr + th + vs
+#   synth_eq <- SO2..tons. ~ inputed+ tmmx + rmax + pr + vs #omitting wind direction
 # 
 #   paste("Facility now running", facility.name, unique(ampd_daily_all_unit$STATE), sep= " ")
 # 
@@ -119,7 +119,7 @@ load ("data/facility_so2_2020.RData")
 #     #Running gsynth
 #     out <<- gsynth(synth_eq,
 #                    data=all_ampd_final,
-#                    index = c("id","week"), na.rm=T, force = "two-way", se=TRUE, nboots=1000,
+#                    index = c("id","week"), na.rm=T, force = "two-way", se=FALSE, nboots=1000,
 #                    CV = TRUE, seed =  123, estimator = "mc", parallel=T, inference = "nonparametric")
 # 
 #     x <- as.data.frame(out$Y.bar)
@@ -151,13 +151,13 @@ load ("data/facility_so2_2020.RData")
 # close(fileConn)
 # 
 # 
-# save(result_so2_weekly_2020, file="data/result_so2_weekly_2020.RData")
-load ("data/result_so2_weekly_2020.RData")
+# save(result_so2_weekly_2020, file="data/result_so2_weekly_2020_no_wd.RData")
+load ("data/result_so2_weekly_2020_no_wd.RData")
 
-# 
+#
 # result_so2_weekly_2020_test <- list()
 # facility_test <- list()
-# 
+#
 # for (i in 1:length(result_so2_weekly_2020)){
 #   sublist = result_so2_weekly_2020[[i]]
 #   if (length(sublist) == 3)
@@ -169,14 +169,14 @@ load ("data/result_so2_weekly_2020.RData")
 #   {
 #     result_so2_weekly_2020_test[[i]] <- NULL # this does achieve the desired result
 #   }
-# 
+#
 # }
-# 
+#
 # result_so2_weekly_2020_test2 <- result_so2_weekly_2020_test[-which(sapply(result_so2_weekly_2020_test, is.null))]
-# 
+#
 # result_so2_weekly_2020 <- result_so2_weekly_2020_test2
 # facility <- unlist(facility_test, recursive = TRUE, use.names = TRUE)
-# 
+#
 
 
 
@@ -186,7 +186,7 @@ for (i in 1: length(facility)) {
   counterfactual_plots[[i]] <- result_so2_weekly_2020 [[i]][[3]]
 }
 layout <- rbind(c(1,2), c(3,4), c(5,6))
-pdf(file = 'plots/counterfactual_plots_so2_2020.pdf', onefile = TRUE, paper = 'A4',
+pdf(file = 'plots/counterfactual_plots_so2_2020_no_wd.pdf', onefile = TRUE, paper = 'A4',
     width = 9, height = 9, pointsize = 1)
 marrangeGrob(grobs = counterfactual_plots, ncol = 2, nrow = 3, layout_matrix = layout)
 dev.off()
@@ -197,8 +197,8 @@ st = list()
 
 for (i in 1:length(facility)) {
   fac.1 <- as.data.frame(facility[i])
-  att.avg <-result_so2_weekly_2020[[i]][[2]]$est.att
-  week <- 1:nrow(att.avg)
+  att.avg <-result_so2_weekly_2020[[i]][[2]]$att
+  week <- 1:length(att.avg)
   st[[i]] <- cbind(fac.1,att.avg, week)
 }
 
@@ -243,6 +243,8 @@ ac.ct.so2.emission = do.call(rbind, datalist)
 names(ac.ct.so2.emission)[names(ac.ct.so2.emission) == 'facility[i]'] <- 'facility'
 
 all.facility.so2.2020 <- merge (all.facility.so2.2020, ac.ct.so2.emission, by = c( "facility", "week" ))
+
+names(all.facility.so2.2020)[names(all.facility.so2.2020) == 'att.avg'] <- 'ATT'
 
 write.fst(all.facility.so2.2020, "data/all.facility.so2.2020.fst")
 

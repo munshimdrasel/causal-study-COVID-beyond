@@ -25,7 +25,7 @@ setwd ("/projects/HAQ_LAB/mrasel/R/causal-study-COVID-beyond")
 # setwd ("/Volumes/GoogleDrive/My Drive/R/causal-study-COVID-beyond")
 
 #getting all electric facilities in the US
-ampd_daily_units_ec <- read.fst ("data/ampd_daily_emission_met_2010_2020.fst")
+ampd_daily_units_ec <- read.fst ("data/emis_met_2010_2020.fst")
 
 ampd_daily_all_units <-  ampd_daily_units_ec 
 
@@ -65,8 +65,8 @@ facility <- as.vector(unique(ampd_daily_no_less_2015$ORISPL_CODE))
 dfx <- as.data.frame(matrix(nrow = 1200, ncol = 3))
 for (i in 1:length(facility)) {
   rs.1<- ampd_daily_no_less_2015 %>% filter (ORISPL_CODE==facility[i])
-  rs.1 <- rs.1 %>% select(ORISPL_CODE, CO2..tons.)
-  rs.2 <- setDT(rs.1)[, .(op.pct = sum(!is.na(rs.1$CO2..tons.))/length(rs.1$CO2..tons.)*100),
+  rs.1 <- rs.1 %>% select(ORISPL_CODE,NOx..tons.)
+  rs.2 <- setDT(rs.1)[, .(op.pct = sum(!is.na(rs.1$NOx..tons.))/length(rs.1$NOx..tons.)*100),
                       by = .(ORISPL_CODE)]
   
   #fac.1 <- as.data.frame(facility[i])
@@ -85,35 +85,63 @@ ampd_daily_all_units <- ampd_daily_no_less_2015 %>% filter(!ORISPL_CODE %in% fac
 
 facility <- as.vector(unique(ampd_daily_all_units$ORISPL_CODE))
 
-ampd_daily_all_units$SO2..tons.[is.na(ampd_daily_all_units$SO2..tons.)] <-  0
+ampd_daily_all_units$NOx..tons.[is.na(ampd_daily_all_units$NOx..tons.)] <-  0
 
 
 ampd_daily_all_units$day.name <- weekdays(as.Date(ampd_daily_all_units$date))
-ampd_daily_all_units$fog <- as.numeric(ampd_daily_all_units$fog)
-ampd_daily_all_units$rain <- as.numeric(ampd_daily_all_units$rain)
-ampd_daily_all_units$snow <- as.numeric(ampd_daily_all_units$snow)
-ampd_daily_all_units$hail <- as.numeric(ampd_daily_all_units$hail)
-ampd_daily_all_units$thunder <- as.numeric(ampd_daily_all_units$thunder)
-ampd_daily_all_units$tornado <- as.numeric(ampd_daily_all_units$tornado)
+# ampd_daily_all_units$fog <- as.numeric(ampd_daily_all_units$fog)
+# ampd_daily_all_units$rain <- as.numeric(ampd_daily_all_units$rain)
+# ampd_daily_all_units$snow <- as.numeric(ampd_daily_all_units$snow)
+# ampd_daily_all_units$hail <- as.numeric(ampd_daily_all_units$hail)
+# ampd_daily_all_units$thunder <- as.numeric(ampd_daily_all_units$thunder)
+# ampd_daily_all_units$tornado <- as.numeric(ampd_daily_all_units$tornado)
 
 rm(ampd_daily_no_less_2015) #to save R working memory
 
 #discarding facilities with no meteoroogy
+# 
+# ampd_daily_all_units2 <- ampd_daily_all_units
+# 
+# dfm <- as.data.frame(matrix(nrow = 1200, ncol = 1))
+# for (i in 1:length(facility)) {
+#   rs.1<- ampd_daily_all_units2 %>% filter (ORISPL_CODE==facility[i])
+#   if (all(is.na(rs.1$mean_temp))==TRUE | all(is.na(rs.1$dewpoint))==TRUE |
+#       all(is.na(rs.1$visibility))==T | all(is.na(rs.1$wind_speed))==T |
+#       all(is.na(rs.1$precipitation))==T) {
+#     rs.2 <- unique(rs.1$ORISPL_CODE)
+#     dfm [i, ] <- rs.2 } 
+# }
+# y <- unique(dfm$V1)
+# y<-as.vector(y[!is.na(y)])
+# 
+# ampd_daily_all_units <- ampd_daily_all_units2 %>% filter(!ORISPL_CODE %in% y)
+# facility <- as.vector(unique(ampd_daily_all_units$ORISPL_CODE))
+# 
+# #discarding facilities 
+# ampd_daily_all_units2 <- ampd_daily_all_units
+# dfm <- as.data.frame(matrix(nrow = 1200, ncol = 1))
+# df.inf <- as.data.frame(matrix(nrow = 1200, ncol = 1))
+# 
+# for (i in 1:length(facility)) {
+#   rs.1<- ampd_daily_all_units2 %>% filter (ORISPL_CODE==facility[i])
+#   if (max(rs.1$mean_temp, na.rm=T)==0 | max(rs.1$dewpoint, na.rm=T)==0 |
+#       max(rs.1$visibility, na.rm=T)==0 | max(rs.1$wind_speed, na.rm=T)==0 |
+#       max(rs.1$precipitation, na.rm=T)==0) {
+#     rs.2 <- unique(rs.1$ORISPL_CODE)
+#     dfm [i, ] <- rs.2 } 
+#   else {
+#     rs.2 <- unique(rs.1$ORISPL_CODE)
+#     df.inf [i, ] <- rs.2 
+#   }
+# }
+# 
+# y <- unique(dfm$V1)
+# y<-as.vector(y[!is.na(y)])
 
-ampd_daily_all_units2 <- ampd_daily_all_units
+# ampd_daily_all_units <- ampd_daily_all_units2 %>% filter(!ORISPL_CODE %in% y)
+facility <- as.vector(unique(ampd_daily_all_units$ORISPL_CODE))
 
-dfm <- as.data.frame(matrix(nrow = 1200, ncol = 1))
+write.fst(ampd_daily_all_units, "data/ampd_daily_cleaned_facility_no2.fst")
 
-for (i in 1:length(facility)) {
-  rs.1<- ampd_daily_all_units2 %>% filter (ORISPL_CODE==facility[i])
-  if (max(na.omit(rs.1$mean_temp))==0 | max(na.omit(rs.1$dewpoint))==0 |
-      max(na.omit(rs.1$visibility))==0 | max(na.omit(rs.1$wind_speed))==0 |
-      max(na.omit(rs.1$precipitation))==0 | max(na.omit(rs.1$fog))==0 |
-      max(na.omit(rs.1$rain))==0 | max(na.omit(rs.1$snow))==0 |
-      max(na.omit(rs.1$hail))==0 | max(na.omit(rs.1$thunder))==0 ) {
-    rs.2 <- unique(rs.1$ORISPL_CODE)
-    dfm [i, ] <- rs.2 }
-}
-y <- unique(dfm$V1)
-y<-as.vector(y[!is.na(y)])
-
+# ampd_daily_all_units <-read.fst("data/ampd_daily_cleaned_facility.fst")
+# facility <- as.vector(unique(ampd_daily_all_units$ORISPL_CODE))
